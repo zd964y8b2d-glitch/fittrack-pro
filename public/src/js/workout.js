@@ -8,7 +8,7 @@ import {
   getMyPlan, addPlanExercise, updatePlanExercise, deletePlanExercise,
   appendExerciseHistory, getWorkoutLogs, addWorkoutLog,
 } from './api.js';
-import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan } from './coachData.js';
+import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js';
 import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js';
 import { assertOnline } from './offline.js';
 
@@ -198,48 +198,135 @@ function renderCoachPlan() {
 // ── MEIN PLAN (frei erstellbar) ─────────────────────────────────────────
 async function renderMyPlan() {
   if (!myPlanCache.length) await refreshMyPlan();
-  const { byDay, warnings } = analyzeMyPlan(myPlanCache);
-  const days = ['A', 'B', 'C', 'D'];
+  const u = currentProfile;
+  const goals = u?.goals?.length ? u.goals : ['muscle'];
+  const { byDay, warnings, byGoal } = analyzeMyPlan(myPlanCache, goals);
+  const goalAnalysis = analyzePlanByGoal(myPlanCache, goals);
   let html = '';
 
+  // ── Coach-Intro wenn leer ──────────────────────────────────────────────
+  if (myPlanCache.length === 0) {
+    html += `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH</div>
+      <div class="ct-txt">Erstelle deinen eigenen Trainingsplan! Deine Ziele bestimmen die Struktur – Kraft- und Ausdauertage werden getrennt angezeigt und analysiert.</div></div></div>`;
+  }
+
+  // ── Globale Coach-Warnungen ────────────────────────────────────────────
   if (warnings['_global']) {
     html += warnings['_global'].map((w) => `<div class="coach-warn" style="margin-bottom:12px"><div class="cw-icon">⚠️</div><div class="cw-txt">${w}</div></div>`).join('');
   }
-  if (myPlanCache.length === 0) {
-    html += `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH</div>
-      <div class="ct-txt">Erstelle deinen eigenen Trainingsplan! Füge Übungen pro Tag hinzu. Ich analysiere deinen Plan und gebe dir Feedback zu fehlenden Muskelgruppen, Volumen und Balance.</div></div></div>`;
-  }
 
-  days.forEach((d) => {
-    const exes = byDay[d] || [];
-    html += `<div class="day-card">
-      <div class="day-hdr">
-        <div><div class="day-name">Tag ${d}</div><div class="day-focus">${exes.length > 0 ? [...new Set(exes.map((e) => e.muscle_group))].join(', ') : 'Noch leer'}</div></div>
-        <span class="tag ${exes.length > 0 ? 'tg' : 'tr'}">${exes.length} Übungen</span>
-      </div>
-      ${exes.map((ex) => {
-        const col = MUSCLE_COLORS[ex.muscle_group] || '#8888A0';
-        return `<div class="ex-row"><div class="row" style="align-items:flex-start">
-          <div style="flex:1">
-            <div class="ex-name">${ex.exercise_name}</div>
-            <div class="ex-sub">${ex.sets}×${ex.reps} ${ex.is_bodyweight ? 'KG' : ex.weight_kg + 'kg'}</div>
-            <span class="ex-muscle" style="background:${col}22;color:${col}">${ex.muscle_group}</span>
-          </div>
-          <div style="display:flex;gap:5px;flex-shrink:0;margin-left:8px">
-            <button class="edit-btn" data-edit="${ex.id}">✏️</button>
-            <button class="del-btn" data-del="${ex.id}">✕</button>
-          </div>
-        </div></div>`;
-      }).join('')}
-      ${warnings[d] ? warnings[d].map((w) => `<div class="coach-warn"><div class="cw-icon">⚠️</div><div class="cw-txt">${w}</div></div>`).join('') : ''}
-      <button class="add-inline-btn" data-day="${d}">+ Übung zu Tag ${d} hinzufügen</button>
-    </div>`;
+  // ── Pro-Ziel Coach-Hinweise ────────────────────────────────────────────
+  goalAnalysis.forEach(ga => {
+    if (ga.warnings.length) {
+      html += ga.warnings.map(w => `<div class="coach-warn" style="margin-bottom:10px;border-color:${ga.color}44">
+        <div class="cw-icon">${ga.icon}</div><div class="cw-txt" style="color:${ga.color}">${w}</div>
+      </div>`).join('');
+    }
   });
 
+  // ── Tage gruppiert nach Ziel ───────────────────────────────────────────
+  // Sammle alle genutzten + leeren Tage
+  const allDays = ['A','B','C','D','E','F','G'];
+  const usedDays = [...new Set(myPlanCache.map(e => e.plan_day))].sort();
+  const displayDays = [...new Set([...usedDays, ...allDays.slice(0, Math.max(4, usedDays.length + 1))])];
+
+  // Gruppiere Tage nach zugeordnetem Ziel
+  const dayGoalMap = {}; // day -> goal
+  myPlanCache.forEach(ex => {
+    if (ex.plan_goal) dayGoalMap[ex.plan_day] = ex.plan_goal;
+  });
+
+  // Render nach Ziel-Sektionen
+  goals.forEach((goal, gi) => {
+    const gInfo = GOAL_OPTS.find(o => o.v === goal) || { l: goal, i: '🎯', v: goal };
+    const GOAL_COLORS = {
+      muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623',
+      endurance: '#2ECC71', health: '#3498DB'
+    };
+    const gc = GOAL_COLORS[goal] || '#7B6EF6';
+
+    // Tage die diesem Ziel zugeordnet sind ODER noch keinem Ziel
+    const goalDays = displayDays.filter(d => {
+      const assigned = dayGoalMap[d];
+      return assigned === goal || (!assigned && gi === 0);
+    });
+
+    html += `<div style="margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 14px;background:${gc}15;border-radius:13px;border:1px solid ${gc}33">
+        <span style="font-size:20px">${gInfo.i}</span>
+        <div>
+          <div style="font-size:14px;font-weight:800;color:${gc}">${gInfo.l}</div>
+          <div style="font-size:11px;color:var(--sub)">${goalTypeHint(goal)}</div>
+        </div>
+        <button onclick="openAddExToMineGoal('${goal}')" style="margin-left:auto;background:${gc}22;border:1px solid ${gc}44;border-radius:9px;padding:6px 12px;color:${gc};font-size:12px;font-weight:700;cursor:pointer">+ Tag</button>
+      </div>`;
+
+    goalDays.forEach((d) => {
+      const exes = (byDay[d] || []).filter(e => !e.plan_goal || e.plan_goal === goal || (gi === 0 && !e.plan_goal));
+      const dayLabel = exes[0]?.day_name || ('Tag ' + d);
+      const isEndurance = goal === 'endurance' || goal === 'cut';
+      html += `<div class="day-card" style="margin-left:8px;border-left:3px solid ${gc}44">
+        <div class="day-hdr">
+          <div>
+            <div class="day-name">${dayLabel}</div>
+            <div class="day-focus">${exes.length > 0
+              ? isEndurance
+                ? exes.map(e => e.exercise_name).slice(0,2).join(', ')
+                : [...new Set(exes.map((e) => e.muscle_group))].join(', ')
+              : 'Noch leer'}</div>
+          </div>
+          <span class="tag" style="background:${gc}15;color:${gc}">${exes.length} Einheiten</span>
+        </div>
+        ${exes.map((ex) => {
+          const col = MUSCLE_COLORS[ex.muscle_group] || gc;
+          return `<div class="ex-row"><div class="row" style="align-items:flex-start">
+            <div style="flex:1">
+              <div class="ex-name">${ex.exercise_name}</div>
+              <div class="ex-sub">${ex.sets}×${ex.reps} ${ex.is_bodyweight ? 'KW' : ex.weight_kg + 'kg'}</div>
+              ${!isEndurance ? `<span class="ex-muscle" style="background:${col}22;color:${col}">${ex.muscle_group}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:5px;flex-shrink:0;margin-left:8px">
+              <button class="edit-btn" data-edit="${ex.id}">✏️</button>
+              <button class="del-btn" data-del="${ex.id}">✕</button>
+            </div>
+          </div></div>`;
+        }).join('')}
+        ${warnings[d] ? warnings[d].map((w) => `<div class="coach-warn"><div class="cw-icon">⚠️</div><div class="cw-txt">${w}</div></div>`).join('') : ''}
+        <button class="add-inline-btn" data-day="${d}" data-goal="${goal}">+ Übung zu ${dayLabel} hinzufügen</button>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  // Globaler "+ Tag hinzufügen" Button
+  html += `<button class="btn-p" onclick="openAddExToMineGoal(null)" style="margin-top:4px">+ Neuen Tag erstellen</button>`;
+
   document.getElementById('wv-mine').innerHTML = html;
-  document.querySelectorAll('#wv-mine [data-day]').forEach((btn) => btn.addEventListener('click', () => openAddExToMine(btn.dataset.day)));
+  document.querySelectorAll('#wv-mine [data-day]').forEach((btn) => {
+    btn.addEventListener('click', () => openAddExToMine(btn.dataset.day, btn.dataset.goal));
+  });
   document.querySelectorAll('#wv-mine [data-edit]').forEach((btn) => btn.addEventListener('click', () => editMyEx(btn.dataset.edit)));
   document.querySelectorAll('#wv-mine [data-del]').forEach((btn) => btn.addEventListener('click', () => delMyEx(btn.dataset.del)));
+}
+
+function goalTypeHint(goal) {
+  const hints = {
+    muscle:    'Kraft- & Hypertrophie-Training',
+    cut:       'Kraft + Kardio (mind. 2× / Woche)',
+    recomp:    'Kraft + Kardio (1–2× / Woche)',
+    endurance: 'Ausdauer- & Kardio-Training',
+    health:    'Flexibler Mix: Kraft & Ausdauer',
+  };
+  return hints[goal] || '';
+}
+
+// Öffnet Modal mit vorausgewähltem Ziel
+function openAddExToMineGoal(goal) {
+  // Nächsten freien Tag finden
+  const usedDays = [...new Set(myPlanCache.map(e => e.plan_day))];
+  const allDays = ['A','B','C','D','E','F','G'];
+  const nextDay = allDays.find(d => !usedDays.includes(d)) || 'A';
+  openAddExToMine(nextDay, goal);
 }
 
 function openAddExToMine(day) {
@@ -311,7 +398,7 @@ export async function saveExerciseFromModal() {
         reps: payload.reps, weight_kg: payload.weight, is_bodyweight: payload.bodyweight, plan_day: payload.day,
       });
     } else {
-      await addPlanExercise(currentUser.id, payload);
+      await addPlanExercise(currentUser.id, { ...payload, goal: payload.planGoal });
     }
     await refreshMyPlan();
     closeMo('mo-ex');
