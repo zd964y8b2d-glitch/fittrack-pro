@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import {
   getMyPlan, addPlanExercise, updatePlanExercise, deletePlanExercise,
-  appendExerciseHistory, getWorkoutLogs, addWorkoutLog, } from './api.js'; import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js'; import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js'; import { assertOnline } from './offline.js';
+  appendExerciseHistory, getWorkoutLogs, addWorkoutLog, deleteWorkoutLog, } from './api.js'; import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js'; import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js'; import { assertOnline } from './offline.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -34,94 +34,139 @@ export function wTab(t) {
 }
 
 // ── AKTIVES WORKOUT ──────────────────────────────────────────────────────
-function getSess(i) {
-  const ex = myPlanCache[i];
-  return {
-    weight: sessData[i]?.weight ?? Number(ex.weight_kg) ?? 0,
-    sets: sessData[i]?.sets ?? ex.sets,
-    reps: sessData[i]?.reps ?? ex.reps,
-  };
+// sessData[i] = Array individueller Sätze: [{reps, weight, done}, ...] let expandedEx = {}; // index -> bool (aufgeklappt?) let activeDayLabel = 'Workout';
+
+function getSessSets(i) {
+  if (!sessData[i]) {
+    const ex = myPlanCache[i];
+    let details = [];
+    try { details = ex.set_details ? JSON.parse(ex.set_details) : null; } catch(e) { details = null; }
+    if (!details || !details.length) {
+      details = Array.from({length: ex.sets || 1}, () => ({ reps: ex.reps, weight: Number(ex.weight_kg) || 0 }));
+    }
+    sessData[i] = details.map(s => ({ reps: s.reps, weight: s.weight, done: false }));
+  }
+  return sessData[i];
 }
 
-function calcVol(c, bw) { return bw ? c.sets * c.reps : c.sets * c.reps * c.weight; }
+function calcVolFromSets(sets, bw) {
+  return sets.reduce((sum, s) => sum + (bw ? s.reps : s.reps * s.weight), 0); }
 
-window.stepEx = function (i, f, d) {
-  const ex = myPlanCache[i];
-  if (!sessData[i]) sessData[i] = { weight: Number(ex.weight_kg) || 0, sets: ex.sets, reps: ex.reps };
-  const s = sessData[i];
-  if (f === 'weight') s.weight = Math.max(0, Math.round((s.weight + d * 2.5) * 10) / 10);
-  else if (f === 'sets') s.sets = Math.max(1, s.sets + d);
-  else s.reps = Math.max(1, s.reps + d);
-  const el = document.getElementById(`sv-${i}-${f}`);
-  if (el) el.textContent = f === 'weight' ? s.weight + ' kg' : (f === 'sets' ? s.sets : s.reps);
-  const cur = getSess(i);
-  const vol = calcVol(cur, ex.is_bodyweight);
-  const ve = document.getElementById(`sv-${i}-vol`);
-  if (ve) ve.textContent = `Vol: ${vol}${ex.is_bodyweight ? ' Wdh.' : ' kg'}`; };
+window.toggleExPanel = function(i) {
+  expandedEx[i] = !expandedEx[i];
+  renderActiveWorkout();
+};
 
-function stepperHTML(i) {
-  const ex = myPlanCache[i];
-  const cur = getSess(i);
-  const vol = calcVol(cur, ex.is_bodyweight);
-  const mk = (f, v, l) => `<div class="sb"><div class="sb-lbl">${l}</div><div class="sb-row">
-    <button class="sp sp-m" onclick="stepEx(${i},'${f}',-1)">−</button>
-    <div class="sv2" id="sv-${i}-${f}">${v}</div>
-    <button class="sp sp-p" onclick="stepEx(${i},'${f}',1)">+</button>
-  </div></div>`;
-  return `<div class="sg2">${mk('sets', cur.sets, 'SÄTZE')}${mk('reps', cur.reps, 'WDH.')}${ex.is_bodyweight ? '' : mk('weight', cur.weight + ' kg', 'GEWICHT')}</div>
-  <div class="vol-badge" id="sv-${i}-vol">Vol: ${vol}${ex.is_bodyweight ? ' Wdh.' : ' kg'}</div>`; }
+window.stepSet = function(i, si, field, delta) {
+  const sets = getSessSets(i);
+  const s = sets[si];
+  if (field === 'weight') s.weight = Math.max(0, Math.round((s.weight + delta * 2.5) * 10) / 10);
+  else s.reps = Math.max(1, s.reps + delta);
+  const el = document.getElementById(`sv-${i}-${si}-${field}`);
+  if (el) el.textContent = field === 'weight' ? s.weight + ' kg' : s.reps;
+  const volEl = document.getElementById(`vol-${i}`);
+  if (volEl) {
+    const ex = myPlanCache[i];
+    volEl.textContent = 'Vol: ' + calcVolFromSets(sets, ex.is_bodyweight) + (ex.is_bodyweight ? ' Wdh.' : ' kg');
+  }
+};
+
+window.toggleSetDone = function(i, si) {
+  const sets = getSessSets(i);
+  sets[si].done = !sets[si].done;
+  renderActiveWorkout();
+};
+
+window.addSetToActive = function(i) {
+  const sets = getSessSets(i);
+  const last = sets[sets.length - 1];
+  sets.push({ reps: last?.reps ?? 10, weight: last?.weight ?? 0, done: false });
+  renderActiveWorkout();
+};
+
+function exerciseCardHTML(ex, i) {
+  const sets = getSessSets(i);
+  const allDone = sets.every(s => s.done);
+  const doneCount = sets.filter(s => s.done).length;
+  const mc = MUSCLE_COLORS[ex.muscle_group] || '#8888A0';
+  const vol = calcVolFromSets(sets, ex.is_bodyweight);
+  const isOpen = !!expandedEx[i];
+
+  return `<div class="ex-row">
+    <div class="row" style="cursor:pointer" onclick="toggleExPanel(${i})">
+      <div style="flex:1">
+        <div class="ex-name" style="color:${allDone ? 'var(--green)' : 'var(--text)'}">${allDone ? '✓ ' : ''}${ex.exercise_name}</div>
+        <span class="ex-muscle" style="background:${mc}22;color:${mc}">${ex.muscle_group}</span>
+        <span style="font-size:11px;color:var(--sub);margin-left:6px">${doneCount}/${sets.length} Sätze</span>
+      </div>
+      <span style="font-size:18px;color:var(--sub);transform:rotate(${isOpen?90:0}deg);transition:transform .2s;display:inline-block">›</span>
+    </div>
+    ${isOpen ? `
+      <div style="margin-top:10px">
+        ${sets.map((s, si) => `
+          <div class="row" style="margin-bottom:8px;padding:8px 10px;background:var(--surface);border-radius:10px;${s.done?'opacity:0.55':''}">
+            <div style="font-size:11px;font-weight:700;color:var(--sub);width:44px;flex-shrink:0">Satz ${si+1}</div>
+            <div class="sg2" style="margin-top:0;flex:1;justify-content:flex-end">
+              <div class="sb"><div class="sb-lbl">WDH.</div><div class="sb-row">
+                <button class="sp sp-m" onclick="event.stopPropagation();stepSet(${i},${si},'reps',-1)">−</button>
+                <div class="sv2" id="sv-${i}-${si}-reps">${s.reps}</div>
+                <button class="sp sp-p" onclick="event.stopPropagation();stepSet(${i},${si},'reps',1)">+</button>
+              </div></div>
+              ${!ex.is_bodyweight ? `<div class="sb"><div class="sb-lbl">KG</div><div class="sb-row">
+                <button class="sp sp-m" onclick="event.stopPropagation();stepSet(${i},${si},'weight',-1)">−</button>
+                <div class="sv2" id="sv-${i}-${si}-weight">${s.weight}</div>
+                <button class="sp sp-p" onclick="event.stopPropagation();stepSet(${i},${si},'weight',1)">+</button>
+              </div></div>` : ''}
+            </div>
+            <button onclick="event.stopPropagation();toggleSetDone(${i},${si})" style="margin-left:8px;flex-shrink:0;width:32px;height:32px;border-radius:9px;border:none;cursor:pointer;background:${s.done?'var(--greenBg)':'var(--border)'};color:${s.done?'var(--green)':'var(--sub)'};font-size:16px">✓</button>
+          </div>`).join('')}
+        <button onclick="event.stopPropagation();addSetToActive(${i})" style="width:100%;background:var(--accentBg);border:1px dashed var(--accentBd);border-radius:10px;padding:8px;color:var(--accent2);font-size:12px;font-weight:700;cursor:pointer;margin-top:2px">+ Satz</button>
+        <div class="vol-badge" id="vol-${i}" style="margin-top:8px">Vol: ${vol}${ex.is_bodyweight ? ' Wdh.' : ' kg'}</div>
+      </div>` : ''}
+  </div>`;
+}
 
 async function renderActiveWorkout() {
   const box = document.getElementById('wv-active');
   if (!myPlanCache.length) await refreshMyPlan();
 
   if (wActive) {
+    const totalSets = myPlanCache.reduce((sum, ex, i) => sum + getSessSets(i).length, 0);
+    const doneSets  = myPlanCache.reduce((sum, ex, i) => sum + getSessSets(i).filter(s=>s.done).length, 0);
     box.innerHTML = `<div class="card active-card" style="margin-bottom:12px">
       <div class="row" style="align-items:flex-start;margin-bottom:12px">
         <div>
           <div class="active-pill"><span class="pulse">●</span> AKTIV</div>
-          <div style="font-size:17px;font-weight:800">${typeLbl(currentProfile.training_types)} Workout</div>
-          <div style="font-size:12px;color:var(--sub);margin-top:2px" id="timer">${fmtTime(wSecs)} · ${wDone}/${myPlanCache.length}</div>
+          <div style="font-size:17px;font-weight:800">${activeDayLabel}</div>
+          <div style="font-size:12px;color:var(--sub);margin-top:2px" id="timer">${fmtTime(wSecs)} · ${doneSets}/${totalSets} Sätze</div>
         </div>
-        <button onclick="window.stopWorkout()" style="background:var(--redBg);border:1px solid rgba(231,76,60,.3);border-radius:11px;padding:8px 13px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer">Beenden</button>
+        <button onclick="window.stopWorkout()" style="background:var(--redBg);border:1px solid rgba(231,69,58,.3);border-radius:11px;padding:8px 13px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer">Beenden</button>
       </div>
-      ${myPlanCache.map((ex, i) => {
-        const done = i < wDone, active = i === wDone, cur = getSess(i), vol = calcVol(cur, ex.is_bodyweight);
-        const mc = MUSCLE_COLORS[ex.muscle_group] || '#8888A0';
-        return `<div class="ex-row">
-          <div class="row">
-            <div>
-              <div class="ex-name" style="color:${done ? 'var(--green)' : 'var(--text)'}">${done ? '✓ ' : ''}${ex.exercise_name}</div>
-              <span class="ex-muscle" style="background:${mc}22;color:${mc}">${ex.muscle_group}</span>
-            </div>
-            ${done ? `<span style="font-size:12px;color:var(--green);font-weight:700">✓ ${cur.sets}×${cur.reps} ${ex.is_bodyweight ? 'KG' : cur.weight + 'kg'}</span>` : ''}
-          </div>
-          ${!done ? `${stepperHTML(i)}${active ? `<button onclick="window.doneEx()" style="margin-top:9px;width:100%;background:var(--accentBg);border:1px solid var(--accentBd);border-radius:11px;padding:10px;color:var(--accent2);font-size:13px;font-weight:800;cursor:pointer">✓ Übung abschließen</button>` : ''}` : ''}
-        </div>`;
-      }).join('')}
+      ${myPlanCache.map((ex, i) => exerciseCardHTML(ex, i)).join('')}
     </div>`;
   } else {
     box.innerHTML = `<button class="btn-p" onclick="window.startWorkout()" style="margin-bottom:14px">⚡ Workout starten</button>
-      <div class="coach-tip"><div class="ct-icon">💡</div><div><div class="ct-lbl">TIPP</div><div class="ct-txt">Starte das Workout und passe Gewicht, Sätze und Wiederholungen direkt während dem Training an. Die Werte werden automatisch für die Progression gespeichert.</div></div></div>`;
+      <div class="coach-tip"><div class="ct-icon">💡</div><div><div class="ct-lbl">TIPP</div><div class="ct-txt">Tippe auf eine Übung um sie aufzuklappen. Jeder Satz ist einzeln anpassbar – hake ihn ab sobald du ihn geschafft hast.</div></div></div>`;
   }
 }
 
-window.startWorkout = async function () {
+window.startWorkout = async function (dayLabel) {
   if (!myPlanCache.length) await refreshMyPlan();
   if (!myPlanCache.length) { showToast('⚠️ Dein Plan ist leer. Füge zuerst Übungen hinzu.'); return; }
-  wActive = true; wSecs = 0; wDone = 0; sessData = {};
+  wActive = true; wSecs = 0; wDone = 0; sessData = {}; expandedEx = {};
+  activeDayLabel = dayLabel || (myPlanCache[0]?.day_name || 'Workout');
   showApp('workout'); wTab('active');
   wTimer = setInterval(() => {
     wSecs++;
     const el = document.getElementById('timer');
-    if (el) el.textContent = `${fmtTime(wSecs)} · ${wDone}/${myPlanCache.length}`;
+    if (el) {
+      const totalSets = myPlanCache.reduce((sum, ex, i) => sum + getSessSets(i).length, 0);
+      const doneSets  = myPlanCache.reduce((sum, ex, i) => sum + getSessSets(i).filter(s=>s.done).length, 0);
+      el.textContent = `${fmtTime(wSecs)} · ${doneSets}/${totalSets} Sätze`;
+    }
   }, 1000);
   renderActiveWorkout();
 };
-
-window.doneEx = async function () {
-  if (wDone < myPlanCache.length) { wDone++; renderActiveWorkout(); }
-  if (wDone === myPlanCache.length) setTimeout(finishWorkout, 300); };
 
 window.stopWorkout = finishWorkout;
 
@@ -130,7 +175,7 @@ async function finishWorkout() {
     assertOnline();
     await saveSessionToHistory();
     await addWorkoutLog(currentUser.id, {
-      workoutName: typeLbl(currentProfile.training_types) + ' Workout',
+      workoutName: activeDayLabel,
       durationMin: Math.round(wSecs / 60),
       exerciseCount: myPlanCache.length,
     });
@@ -147,10 +192,17 @@ async function saveSessionToHistory() {
   const today = todayLbl();
   for (let i = 0; i < myPlanCache.length; i++) {
     const ex = myPlanCache[i];
-    const cur = getSess(i);
-    const vol = calcVol(cur, ex.is_bodyweight);
-    const entry = { date: today, weight: cur.weight, sets: cur.sets, reps: cur.reps, volume: vol };
+    const sets = getSessSets(i);
+    const vol = calcVolFromSets(sets, ex.is_bodyweight);
+    const avgReps = Math.round(sets.reduce((s,x)=>s+x.reps,0) / sets.length);
+    const avgWeight = Math.round((sets.reduce((s,x)=>s+x.weight,0) / sets.length) * 10) / 10;
+    const entry = { date: today, weight: avgWeight, sets: sets.length, reps: avgReps, volume: vol };
     await appendExerciseHistory(ex.id, ex.history, entry);
+    // Auch set_details in der DB aktualisieren, damit nächstes Mal diese Werte vorbefüllt sind
+    await updatePlanExercise(ex.id, {
+      set_details: JSON.stringify(sets.map(s => ({ reps: s.reps, weight: s.weight }))),
+      sets: sets.length, reps: avgReps, weight_kg: avgWeight,
+    });
   }
   sessData = {};
   await refreshMyPlan();
@@ -254,10 +306,15 @@ async function renderMyPlan() {
         </div>
         ${exes.map((ex) => {
           const col = MUSCLE_COLORS[ex.muscle_group] || gc;
+          let setDetails = [];
+          try { setDetails = ex.set_details ? JSON.parse(ex.set_details) : null; } catch(e) { setDetails = null; }
+          const setsLine = setDetails && setDetails.length
+            ? setDetails.map(s => ex.is_bodyweight ? `${s.reps}` : `${s.reps}×${s.weight}kg`).join(' · ')
+            : `${ex.sets}×${ex.reps} ${ex.is_bodyweight ? 'KG' : ex.weight_kg + 'kg'}`;
           return `<div class="ex-row"><div class="row" style="align-items:flex-start">
             <div style="flex:1">
               <div class="ex-name">${ex.exercise_name}</div>
-              <div class="ex-sub">${ex.sets}×${ex.reps} ${ex.is_bodyweight ? 'KG' : ex.weight_kg + 'kg'}</div>
+              <div class="ex-sub">${setsLine}</div>
               ${!isEndurance ? `<span class="ex-muscle" style="background:${col}22;color:${col}">${ex.muscle_group}</span>` : ''}
             </div>
             <div style="display:flex;gap:5px;flex-shrink:0;margin-left:8px">
@@ -268,6 +325,7 @@ async function renderMyPlan() {
         }).join('')}
         ${warnings[d] ? warnings[d].map((w) => `<div class="coach-warn"><div class="cw-icon">⚠️</div><div class="cw-txt">${w}</div></div>`).join('') : ''}
         <button class="add-inline-btn" data-day="${d}" data-goal="${goal}">+ Übung zu ${dayLabel} hinzufügen</button>
+        ${exes.length > 0 ? `<button data-start-day="${d}" data-day-label="${dayLabel.replace(/"/g,'&quot;')}" style="width:100%;margin-top:8px;background:${gc};border:none;border-radius:11px;padding:10px;color:#fff;font-size:13px;font-weight:800;cursor:pointer">⚡ ${dayLabel} starten</button>` : ''}
       </div>`;
     });
     html += '</div>';
@@ -278,7 +336,15 @@ async function renderMyPlan() {
     btn.addEventListener('click', () => openAddExToMine(btn.dataset.day, btn.dataset.goal));
   });
   document.querySelectorAll('#wv-mine [data-edit]').forEach((btn) => btn.addEventListener('click', () => editMyEx(btn.dataset.edit)));
-  document.querySelectorAll('#wv-mine [data-del]').forEach((btn) => btn.addEventListener('click', () => delMyEx(btn.dataset.del))); }
+  document.querySelectorAll('#wv-mine [data-del]').forEach((btn) => btn.addEventListener('click', () => delMyEx(btn.dataset.del)));
+  document.querySelectorAll('#wv-mine [data-start-day]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      // Filtert myPlanCache serverseitig NICHT - Start-Button startet den kompletten aktuellen Plan
+      // (myPlanCache enthält bereits alle Übungen; Nutzer kann während des Workouts durchklicken)
+      window.startWorkout(btn.dataset.dayLabel);
+    });
+  });
+}
 
 function goalTypeHint(goal) {
   const hints = {
@@ -293,6 +359,11 @@ function openAddExToMine(day, goal) {
   const goalLabels = {muscle:'💪 Muskelaufbau',cut:'🔥 Fettabbau',recomp:'⚖️ Rekomposition',endurance:'🏃 Ausdauer',health:'❤️ Gesundheit'};
   const isEndurance = goal === 'endurance' || goal === 'cut';
 
+  // Bestehenden Tag-Namen übernehmen, falls der Tag schon Übungen hat (nicht doppelt abfragen)
+  const dayExes = myPlanCache.filter((e) => e.plan_day === day);
+  const existingDayName = dayExes[0]?.day_name || '';
+  const existingGoal = dayExes[0]?.plan_goal || goal || '';
+
   document.getElementById('mo-ex-title').textContent = 'Übung hinzufügen – Tag ' + day + (goal ? ' · ' + (goalLabels[goal]||goal) : '');
   document.getElementById('ex-name').value = '';
   document.getElementById('ex-sets').value = '3';
@@ -300,20 +371,24 @@ function openAddExToMine(day, goal) {
   document.getElementById('ex-weight').value = '0';
   document.getElementById('ex-day').value = day;
   const dayNameEl = document.getElementById('ex-day-name');
-  if (dayNameEl) dayNameEl.value = '';
+  if (dayNameEl) dayNameEl.value = existingDayName;
   const goalHidden = document.getElementById('ex-goal-hidden');
-  if (goalHidden) goalHidden.value = goal || '';
+  if (goalHidden) goalHidden.value = existingGoal;
   document.getElementById('ex-edit-id').value = '';
 
   // Kraft/Ausdauer-Modus umschalten (setzt auch die Muskelgruppen-Optionen neu)
   if (typeof window.setExMode === 'function') {
     window.setExMode(isEndurance);
   }
-  // Muskelgruppe leer lassen -> Nutzer wählt bewusst, Dropdown befüllt sich per onchange
+  // Muskelgruppe & Übung IMMER leer lassen -> nichts wird aus vorherigen Eingaben übernommen
   document.getElementById('ex-muscle').value = '';
   if (typeof window.updateExerciseDropdown === 'function') window.updateExerciseDropdown();
 
-  const dayExes = myPlanCache.filter((e) => e.plan_day === day);
+  // Sätze zurücksetzen (leer, Nutzer fügt manuell hinzu oder wählt Vorlage)
+  window._setRows = [];
+  window._exBodyweight = false;
+  if (typeof window.setExBodyweight === 'function') window.setExBodyweight(false);
+
   const dayMuscles = [...new Set(dayExes.map((e) => e.muscle_group))];
   const missing = MUSCLE_GROUPS_IMPORTANT.filter((m) => !dayMuscles.includes(m));
   document.getElementById('mo-ex-coach').innerHTML = (!isEndurance && missing.length)
@@ -334,9 +409,6 @@ function editMyEx(id) {
   const ex = myPlanCache.find((e) => e.id === id);
   if (!ex) return;
   document.getElementById('mo-ex-title').textContent = 'Übung bearbeiten';
-  document.getElementById('ex-sets').value = ex.sets;
-  document.getElementById('ex-reps').value = ex.reps;
-  document.getElementById('ex-weight').value = ex.weight_kg;
   document.getElementById('ex-day').value = ex.plan_day;
   const dayNameEl = document.getElementById('ex-day-name');
   if (dayNameEl) dayNameEl.value = ex.day_name || '';
@@ -348,6 +420,16 @@ function editMyEx(id) {
   if (typeof window.setExMode === 'function') window.setExMode(isEndurance);
   document.getElementById('ex-muscle').value = ex.muscle_group;
   if (typeof window.updateExerciseDropdown === 'function') window.updateExerciseDropdown();
+
+  // Sätze aus gespeicherten Details laden (Fallback: aus sets/reps/weight generieren)
+  let setDetails = [];
+  try { setDetails = ex.set_details ? JSON.parse(ex.set_details) : null; } catch(e) { setDetails = null; }
+  if (!setDetails || !setDetails.length) {
+    setDetails = Array.from({length: ex.sets || 1}, () => ({ reps: ex.reps, weight: ex.weight_kg }));
+  }
+  window._setRows = setDetails;
+  window._exBodyweight = !!ex.is_bodyweight;
+  if (typeof window.setExBodyweight === 'function') window.setExBodyweight(window._exBodyweight);
 
   // Übungsname erst NACH Dropdown-Aufbau setzen, damit er nicht überschrieben wird
   setTimeout(() => { document.getElementById('ex-name').value = ex.exercise_name; }, 0);
@@ -371,19 +453,27 @@ async function delMyEx(id) {
 export async function saveExerciseFromModal() {
   const name = document.getElementById('ex-name').value.trim();
   if (!name) { showToast('⚠️ Übungsname erforderlich'); return; }
-  const weight = parseFloat(document.getElementById('ex-weight').value) || 0;
+
+  const setRows = window._setRows || [];
+  if (!setRows.length) { showToast('⚠️ Mindestens 1 Satz hinzufügen'); return; }
+
+  const isBw = !!window._exBodyweight;
   const dayName = document.getElementById('ex-day-name')?.value?.trim() || '';
   const planGoal = document.getElementById('ex-goal-hidden')?.value || '';
+
+  // Für Rückwärtskompatibilität: sets/reps/weight aus dem ersten Satz ableiten
+  const firstSet = setRows[0];
   const payload = {
     name,
     muscle: document.getElementById('ex-muscle').value || 'Ganzkörper',
-    sets: parseInt(document.getElementById('ex-sets').value) || 3,
-    reps: parseInt(document.getElementById('ex-reps').value) || 10,
-    weight,
-    bodyweight: weight === 0,
+    sets: setRows.length,
+    reps: firstSet.reps,
+    weight: isBw ? 0 : firstSet.weight,
+    bodyweight: isBw,
     day: document.getElementById('ex-day').value || 'A',
     dayName,
     goal: planGoal,
+    setDetails: setRows.map(s => ({ reps: s.reps, weight: isBw ? 0 : s.weight })),
   };
   const editId = document.getElementById('ex-edit-id').value;
 
@@ -392,7 +482,9 @@ export async function saveExerciseFromModal() {
     if (editId) {
       await updatePlanExercise(editId, {
         exercise_name: payload.name, muscle_group: payload.muscle, sets: payload.sets,
-        reps: payload.reps, weight_kg: payload.weight, is_bodyweight: payload.bodyweight, plan_day: payload.day,
+        reps: payload.reps, weight_kg: payload.weight, is_bodyweight: payload.bodyweight,
+        plan_day: payload.day, day_name: payload.dayName, plan_goal: payload.goal,
+        set_details: JSON.stringify(payload.setDetails),
       });
     } else {
       await addPlanExercise(currentUser.id, payload);
@@ -408,14 +500,35 @@ export async function saveExerciseFromModal() {
 
 // ── VERLAUF ──────────────────────────────────────────────────────────────
 async function renderWorkoutHistory() {
-  const log = await getWorkoutLogs(currentUser.id, 15);
+  const log = await getWorkoutLogs(currentUser.id, 30);
   document.getElementById('wv-history').innerHTML = log.length
-    ? log.map((w) => `<div class="card"><div class="row">
-        <div><div style="font-size:14px;font-weight:800">${w.workout_name}</div>
-        <div style="font-size:12px;color:var(--sub);margin-top:2px">${w.duration_min} Min · ${w.exercise_count} Übungen</div></div>
-        <span class="tag ta">${new Date(w.performed_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
-      </div></div>`).join('')
-    : `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Noch keine Workouts. Starte dein erstes!</div>`; }
+    ? log.map((w) => `<div class="card">
+        <div class="row" style="align-items:flex-start">
+          <div>
+            <div style="font-size:14px;font-weight:800">${w.workout_name}</div>
+            <div style="font-size:12px;color:var(--sub);margin-top:2px">${w.duration_min} Min · ${w.exercise_count} Übungen</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="tag ta">${new Date(w.performed_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
+            <button data-del-log="${w.id}" style="background:var(--redBg);border:none;border-radius:8px;width:28px;height:28px;color:var(--red);font-size:14px;cursor:pointer">✕</button>
+          </div>
+        </div>
+      </div>`).join('')
+    : `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Noch keine Workouts. Starte dein erstes!</div>`;
+
+  document.querySelectorAll('[data-del-log]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Diesen Workout-Eintrag löschen?')) return;
+      try {
+        await deleteWorkoutLog(btn.dataset.delLog);
+        renderWorkoutHistory();
+        showToast('Eintrag gelöscht');
+      } catch (e) {
+        showToast('⚠️ Löschen fehlgeschlagen');
+      }
+    });
+  });
+}
 
 // ── PROGRESSION ──────────────────────────────────────────────────────────
 export async function renderProgression() {
