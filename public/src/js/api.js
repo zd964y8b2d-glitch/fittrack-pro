@@ -91,8 +91,7 @@ export async function appendExerciseHistory(id, currentHistory, entry) {
   const lastIdx = updated.length - 1;
   if (lastIdx >= 0 && updated[lastIdx].date === today) updated[lastIdx] = entry;
   else updated.push(entry);
-  return updatePlanExercise(id, { history: updated, sets: entry.sets, reps: entry.reps, weight_kg: entry.weight });
-}
+  return updatePlanExercise(id, { history: updated, sets: entry.sets, reps: entry.reps, weight_kg: entry.weight }); }
 
 export async function getMealsForToday(userId) {
   const startOfDay = new Date();
