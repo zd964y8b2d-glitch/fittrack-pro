@@ -212,13 +212,21 @@
   <div class="ig"><label>Übung (manuell)</label>
     <input id="ex-name" class="oi" type="text" placeholder="Übungsname eingeben...">
   </div>
-  <div class="ir">
-    <div class="ig"><label>Sätze</label><input id="ex-sets" class="oi" type="number" inputmode="numeric" placeholder="4"></div>
-    <div class="ig"><label>Wiederholungen</label><input id="ex-reps" class="oi" type="number" inputmode="numeric" placeholder="10"></div>
+  <div class="ig" style="margin-bottom:6px"><label>Körpergewicht-Übung (kein externes Gewicht)</label>
+    <div style="display:flex;gap:8px">
+      <button type="button" id="ex-bw-no"  onclick="setExBodyweight(false)" style="flex:1;padding:9px;border-radius:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff">Mit Gewicht</button>
+      <button type="button" id="ex-bw-yes" onclick="setExBodyweight(true)"  style="flex:1;padding:9px;border-radius:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:var(--surface);color:var(--sub)">Körpergewicht</button>
+    </div>
   </div>
-  <div class="ig"><label>Gewicht (kg · 0 = Körpergewicht)</label>
-    <input id="ex-weight" class="oi" type="number" inputmode="decimal" placeholder="0">
+
+  <div class="ig">
+    <div class="row" style="margin-bottom:8px">
+      <label style="margin-bottom:0">Sätze</label>
+      <button type="button" onclick="addSetRow()" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:8px;padding:4px 10px;color:var(--accent2);font-size:12px;font-weight:700;cursor:pointer">+ Satz</button>
+    </div>
+    <div id="ex-sets-list"></div>
   </div>
+
   <input type="hidden" id="ex-edit-id">
   <input type="hidden" id="ex-goal-hidden">
   <button class="btn-p" id="btn-save-ex" style="margin-top:8px">Speichern</button>
@@ -563,6 +571,52 @@ window.updateExerciseDropdown = function() {
   }
 };
 
+window._exBodyweight = false;
+window._setRows = []; // Array von {reps, weight}
+
+window.setExBodyweight = function(bw) {
+  window._exBodyweight = bw;
+  const noBtn  = document.getElementById('ex-bw-no');
+  const yesBtn = document.getElementById('ex-bw-yes');
+  noBtn.style.background  = bw ? 'var(--surface)' : 'var(--accent)';
+  noBtn.style.color       = bw ? 'var(--sub)'     : '#fff';
+  yesBtn.style.background = bw ? 'var(--accent)'  : 'var(--surface)';
+  yesBtn.style.color      = bw ? '#fff'           : 'var(--sub)';
+  renderSetRows();
+};
+
+window.addSetRow = function() {
+  const last = window._setRows[window._setRows.length - 1];
+  window._setRows.push({ reps: last?.reps ?? 10, weight: last?.weight ?? 0 });
+  renderSetRows();
+};
+
+window.removeSetRow = function(idx) {
+  window._setRows.splice(idx, 1);
+  renderSetRows();
+};
+
+window.updateSetRow = function(idx, field, val) {
+  window._setRows[idx][field] = field === 'reps' ? (parseInt(val)||0) : (parseFloat(val)||0); };
+
+function renderSetRows() {
+  const list = document.getElementById('ex-sets-list');
+  if (!list) return;
+  const bw = window._exBodyweight;
+  list.innerHTML = window._setRows.map((s, i) => `
+    <div class="row" style="gap:8px;margin-bottom:8px;align-items:center">
+      <div style="width:44px;flex-shrink:0;font-size:12px;color:var(--sub);font-weight:700">Satz ${i+1}</div>
+      <div style="flex:1">
+        <input type="number" inputmode="numeric" class="oi" placeholder="Wdh." value="${s.reps}"
+          oninput="updateSetRow(${i},'reps',this.value)" style="padding:9px 10px;font-size:14px">
+      </div>
+      ${!bw ? `<div style="flex:1">
+        <input type="number" inputmode="decimal" class="oi" placeholder="kg" value="${s.weight}"
+          oninput="updateSetRow(${i},'weight',this.value)" style="padding:9px 10px;font-size:14px">
+      </div>` : ''}
+      <button type="button" onclick="removeSetRow(${i})" style="background:var(--redBg);border:none;border-radius:8px;width:32px;height:32px;color:var(--red);font-size:16px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>`).join('') || `<div style="text-align:center;color:var(--muted);font-size:12px;padding:12px">Noch keine Sätze – tippe "+ Satz"</div>`; }
+
 window.onExerciseSelect = function() {
   const select = document.getElementById('ex-name-select');
   const val = select.value;
@@ -570,9 +624,11 @@ window.onExerciseSelect = function() {
   try {
     const ex = JSON.parse(val);
     document.getElementById('ex-name').value = ex.name;
-    document.getElementById('ex-sets').value = ex.sets;
-    document.getElementById('ex-reps').value = ex.reps;
-    document.getElementById('ex-weight').value = ex.weight;
+    window._exBodyweight = ex.bodyweight;
+    window.setExBodyweight(ex.bodyweight);
+    // Sätze aus Vorlage vorbefüllen
+    window._setRows = Array.from({length: ex.sets}, () => ({ reps: ex.reps, weight: ex.weight }));
+    renderSetRows();
   } catch(e) {}
 };
 </script>
