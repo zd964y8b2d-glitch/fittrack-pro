@@ -1,23 +1,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // workout.js
-// Aktives Workout (Sätze/Wdh./Gewicht live anpassbar), Coach-Plan-Ansicht,
-// individueller "Mein Plan" (frei erstellbar inkl. Coach-Warnungen),
-// Workout-Verlauf, Progressions-Charts.
+// Aktives Workout (Sätze/Wdh./Gewicht live anpassbar), Coach-Plan-Ansicht, // individueller "Mein Plan" (frei erstellbar inkl. Coach-Warnungen), // Workout-Verlauf, Progressions-Charts.
 // ═══════════════════════════════════════════════════════════════════════════
 import {
   getMyPlan, addPlanExercise, updatePlanExercise, deletePlanExercise,
-  appendExerciseHistory, getWorkoutLogs, addWorkoutLog,
-} from './api.js';
-import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js';
-import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js';
-import { assertOnline } from './offline.js';
+  appendExerciseHistory, getWorkoutLogs, addWorkoutLog, } from './api.js'; import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js'; import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js'; import { assertOnline } from './offline.js';
 
 let currentUser = null;
 let currentProfile = null;
 let myPlanCache = [];
-let wActive = false, wTimer = null, wSecs = 0, wDone = 0;
-let sessData = {}; // index -> {weight, sets, reps} während einer aktiven Session
-let activeWTab = 'active';
+let wActive = false, wTimer = null, wSecs = 0, wDone = 0; let sessData = {}; // index -> {weight, sets, reps} während einer aktiven Session let activeWTab = 'active';
 
 export function initWorkoutModule(user, profile) {
   currentUser = user;
@@ -65,8 +57,7 @@ window.stepEx = function (i, f, d) {
   const cur = getSess(i);
   const vol = calcVol(cur, ex.is_bodyweight);
   const ve = document.getElementById(`sv-${i}-vol`);
-  if (ve) ve.textContent = `Vol: ${vol}${ex.is_bodyweight ? ' Wdh.' : ' kg'}`;
-};
+  if (ve) ve.textContent = `Vol: ${vol}${ex.is_bodyweight ? ' Wdh.' : ' kg'}`; };
 
 function stepperHTML(i) {
   const ex = myPlanCache[i];
@@ -78,8 +69,7 @@ function stepperHTML(i) {
     <button class="sp sp-p" onclick="stepEx(${i},'${f}',1)">+</button>
   </div></div>`;
   return `<div class="sg2">${mk('sets', cur.sets, 'SÄTZE')}${mk('reps', cur.reps, 'WDH.')}${ex.is_bodyweight ? '' : mk('weight', cur.weight + ' kg', 'GEWICHT')}</div>
-  <div class="vol-badge" id="sv-${i}-vol">Vol: ${vol}${ex.is_bodyweight ? ' Wdh.' : ' kg'}</div>`;
-}
+  <div class="vol-badge" id="sv-${i}-vol">Vol: ${vol}${ex.is_bodyweight ? ' Wdh.' : ' kg'}</div>`; }
 
 async function renderActiveWorkout() {
   const box = document.getElementById('wv-active');
@@ -131,8 +121,7 @@ window.startWorkout = async function () {
 
 window.doneEx = async function () {
   if (wDone < myPlanCache.length) { wDone++; renderActiveWorkout(); }
-  if (wDone === myPlanCache.length) setTimeout(finishWorkout, 300);
-};
+  if (wDone === myPlanCache.length) setTimeout(finishWorkout, 300); };
 
 window.stopWorkout = finishWorkout;
 
@@ -200,22 +189,19 @@ async function renderMyPlan() {
   if (!myPlanCache.length) await refreshMyPlan();
   const u = currentProfile;
   const goals = u?.goals?.length ? u.goals : ['muscle'];
-  const { byDay, warnings, byGoal } = analyzeMyPlan(myPlanCache, goals);
+  const { byDay, warnings } = analyzeMyPlan(myPlanCache, goals);
   const goalAnalysis = analyzePlanByGoal(myPlanCache, goals);
   let html = '';
 
-  // ── Coach-Intro wenn leer ──────────────────────────────────────────────
   if (myPlanCache.length === 0) {
     html += `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH</div>
       <div class="ct-txt">Erstelle deinen eigenen Trainingsplan! Deine Ziele bestimmen die Struktur – Kraft- und Ausdauertage werden getrennt angezeigt und analysiert.</div></div></div>`;
   }
 
-  // ── Globale Coach-Warnungen ────────────────────────────────────────────
   if (warnings['_global']) {
     html += warnings['_global'].map((w) => `<div class="coach-warn" style="margin-bottom:12px"><div class="cw-icon">⚠️</div><div class="cw-txt">${w}</div></div>`).join('');
   }
 
-  // ── Pro-Ziel Coach-Hinweise ────────────────────────────────────────────
   goalAnalysis.forEach(ga => {
     if (ga.warnings.length) {
       html += ga.warnings.map(w => `<div class="coach-warn" style="margin-bottom:10px;border-color:${ga.color}44">
@@ -224,28 +210,20 @@ async function renderMyPlan() {
     }
   });
 
-  // ── Tage gruppiert nach Ziel ───────────────────────────────────────────
-  // Sammle alle genutzten + leeren Tage
   const allDays = ['A','B','C','D','E','F','G'];
   const usedDays = [...new Set(myPlanCache.map(e => e.plan_day))].sort();
   const displayDays = [...new Set([...usedDays, ...allDays.slice(0, Math.max(4, usedDays.length + 1))])];
 
-  // Gruppiere Tage nach zugeordnetem Ziel
-  const dayGoalMap = {}; // day -> goal
-  myPlanCache.forEach(ex => {
-    if (ex.plan_goal) dayGoalMap[ex.plan_day] = ex.plan_goal;
-  });
+  const dayGoalMap = {};
+  myPlanCache.forEach(ex => { if (ex.plan_goal) dayGoalMap[ex.plan_day] = ex.plan_goal; });
 
-  // Render nach Ziel-Sektionen
+  const GOAL_COLORS = { muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623', endurance: '#2ECC71', health: '#3498DB' };
+
   goals.forEach((goal, gi) => {
     const gInfo = GOAL_OPTS.find(o => o.v === goal) || { l: goal, i: '🎯', v: goal };
-    const GOAL_COLORS = {
-      muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623',
-      endurance: '#2ECC71', health: '#3498DB'
-    };
     const gc = GOAL_COLORS[goal] || '#7B6EF6';
+    const isEndurance = goal === 'endurance' || goal === 'cut';
 
-    // Tage die diesem Ziel zugeordnet sind ODER noch keinem Ziel
     const goalDays = displayDays.filter(d => {
       const assigned = dayGoalMap[d];
       return assigned === goal || (!assigned && gi === 0);
@@ -264,15 +242,12 @@ async function renderMyPlan() {
     goalDays.forEach((d) => {
       const exes = (byDay[d] || []).filter(e => !e.plan_goal || e.plan_goal === goal || (gi === 0 && !e.plan_goal));
       const dayLabel = exes[0]?.day_name || ('Tag ' + d);
-      const isEndurance = goal === 'endurance' || goal === 'cut';
       html += `<div class="day-card" style="margin-left:8px;border-left:3px solid ${gc}44">
         <div class="day-hdr">
           <div>
             <div class="day-name">${dayLabel}</div>
             <div class="day-focus">${exes.length > 0
-              ? isEndurance
-                ? exes.map(e => e.exercise_name).slice(0,2).join(', ')
-                : [...new Set(exes.map((e) => e.muscle_group))].join(', ')
+              ? isEndurance ? exes.map(e => e.exercise_name).slice(0,2).join(', ') : [...new Set(exes.map((e) => e.muscle_group))].join(', ')
               : 'Noch leer'}</div>
           </div>
           <span class="tag" style="background:${gc}15;color:${gc}">${exes.length} Einheiten</span>
@@ -282,7 +257,7 @@ async function renderMyPlan() {
           return `<div class="ex-row"><div class="row" style="align-items:flex-start">
             <div style="flex:1">
               <div class="ex-name">${ex.exercise_name}</div>
-              <div class="ex-sub">${ex.sets}×${ex.reps} ${ex.is_bodyweight ? 'KW' : ex.weight_kg + 'kg'}</div>
+              <div class="ex-sub">${ex.sets}×${ex.reps} ${ex.is_bodyweight ? 'KG' : ex.weight_kg + 'kg'}</div>
               ${!isEndurance ? `<span class="ex-muscle" style="background:${col}22;color:${col}">${ex.muscle_group}</span>` : ''}
             </div>
             <div style="display:flex;gap:5px;flex-shrink:0;margin-left:8px">
@@ -298,67 +273,85 @@ async function renderMyPlan() {
     html += '</div>';
   });
 
-  // Globaler "+ Tag hinzufügen" Button
-  html += `<button class="btn-p" onclick="openAddExToMineGoal(null)" style="margin-top:4px">+ Neuen Tag erstellen</button>`;
-
   document.getElementById('wv-mine').innerHTML = html;
   document.querySelectorAll('#wv-mine [data-day]').forEach((btn) => {
     btn.addEventListener('click', () => openAddExToMine(btn.dataset.day, btn.dataset.goal));
   });
   document.querySelectorAll('#wv-mine [data-edit]').forEach((btn) => btn.addEventListener('click', () => editMyEx(btn.dataset.edit)));
-  document.querySelectorAll('#wv-mine [data-del]').forEach((btn) => btn.addEventListener('click', () => delMyEx(btn.dataset.del)));
-}
+  document.querySelectorAll('#wv-mine [data-del]').forEach((btn) => btn.addEventListener('click', () => delMyEx(btn.dataset.del))); }
 
 function goalTypeHint(goal) {
   const hints = {
-    muscle:    'Kraft- & Hypertrophie-Training',
-    cut:       'Kraft + Kardio (mind. 2× / Woche)',
-    recomp:    'Kraft + Kardio (1–2× / Woche)',
-    endurance: 'Ausdauer- & Kardio-Training',
-    health:    'Flexibler Mix: Kraft & Ausdauer',
+    muscle: 'Kraft- & Hypertrophie-Training', cut: 'Kraft + Kardio (mind. 2× / Woche)',
+    recomp: 'Kraft + Kardio (1–2× / Woche)', endurance: 'Ausdauer- & Kardio-Training',
+    health: 'Flexibler Mix: Kraft & Ausdauer',
   };
   return hints[goal] || '';
 }
 
-// Öffnet Modal mit vorausgewähltem Ziel
-function openAddExToMineGoal(goal) {
-  // Nächsten freien Tag finden
-  const usedDays = [...new Set(myPlanCache.map(e => e.plan_day))];
-  const allDays = ['A','B','C','D','E','F','G'];
-  const nextDay = allDays.find(d => !usedDays.includes(d)) || 'A';
-  openAddExToMine(nextDay, goal);
-}
+function openAddExToMine(day, goal) {
+  const goalLabels = {muscle:'💪 Muskelaufbau',cut:'🔥 Fettabbau',recomp:'⚖️ Rekomposition',endurance:'🏃 Ausdauer',health:'❤️ Gesundheit'};
+  const isEndurance = goal === 'endurance' || goal === 'cut';
 
-function openAddExToMine(day) {
-  document.getElementById('mo-ex-title').textContent = 'Übung hinzufügen – Tag ' + day;
+  document.getElementById('mo-ex-title').textContent = 'Übung hinzufügen – Tag ' + day + (goal ? ' · ' + (goalLabels[goal]||goal) : '');
   document.getElementById('ex-name').value = '';
-  document.getElementById('ex-muscle').value = 'Brust';
   document.getElementById('ex-sets').value = '3';
   document.getElementById('ex-reps').value = '10';
   document.getElementById('ex-weight').value = '0';
   document.getElementById('ex-day').value = day;
+  const dayNameEl = document.getElementById('ex-day-name');
+  if (dayNameEl) dayNameEl.value = '';
+  const goalHidden = document.getElementById('ex-goal-hidden');
+  if (goalHidden) goalHidden.value = goal || '';
   document.getElementById('ex-edit-id').value = '';
+
+  // Kraft/Ausdauer-Modus umschalten (setzt auch die Muskelgruppen-Optionen neu)
+  if (typeof window.setExMode === 'function') {
+    window.setExMode(isEndurance);
+  }
+  // Muskelgruppe leer lassen -> Nutzer wählt bewusst, Dropdown befüllt sich per onchange
+  document.getElementById('ex-muscle').value = '';
+  if (typeof window.updateExerciseDropdown === 'function') window.updateExerciseDropdown();
 
   const dayExes = myPlanCache.filter((e) => e.plan_day === day);
   const dayMuscles = [...new Set(dayExes.map((e) => e.muscle_group))];
   const missing = MUSCLE_GROUPS_IMPORTANT.filter((m) => !dayMuscles.includes(m));
-  document.getElementById('mo-ex-coach').innerHTML = missing.length
+  document.getElementById('mo-ex-coach').innerHTML = (!isEndurance && missing.length)
     ? `<div class="coach-tip"><div class="ct-icon">💡</div><div><div class="ct-lbl">COACH-HINWEIS</div><div class="ct-txt">Tag ${day} fehlt noch: <strong>${missing.slice(0, 3).join(', ')}</strong>. Denk an Antagonisten-Balance!</div></div></div>`
     : '';
   openMo('mo-ex');
 }
 
+function openAddExToMineGoal(goal) {
+  const usedDays = [...new Set(myPlanCache.map(e => e.plan_day))];
+  const allDays = ['A','B','C','D','E','F','G'];
+  const nextDay = allDays.find(d => !usedDays.includes(d)) || 'A';
+  openAddExToMine(nextDay, goal);
+}
+window.openAddExToMineGoal = openAddExToMineGoal;
+
 function editMyEx(id) {
   const ex = myPlanCache.find((e) => e.id === id);
   if (!ex) return;
   document.getElementById('mo-ex-title').textContent = 'Übung bearbeiten';
-  document.getElementById('ex-name').value = ex.exercise_name;
-  document.getElementById('ex-muscle').value = ex.muscle_group;
   document.getElementById('ex-sets').value = ex.sets;
   document.getElementById('ex-reps').value = ex.reps;
   document.getElementById('ex-weight').value = ex.weight_kg;
   document.getElementById('ex-day').value = ex.plan_day;
+  const dayNameEl = document.getElementById('ex-day-name');
+  if (dayNameEl) dayNameEl.value = ex.day_name || '';
+  const goalHidden = document.getElementById('ex-goal-hidden');
+  if (goalHidden) goalHidden.value = ex.plan_goal || '';
   document.getElementById('ex-edit-id').value = ex.id;
+
+  const isEndurance = ex.plan_goal === 'endurance' || ex.plan_goal === 'cut';
+  if (typeof window.setExMode === 'function') window.setExMode(isEndurance);
+  document.getElementById('ex-muscle').value = ex.muscle_group;
+  if (typeof window.updateExerciseDropdown === 'function') window.updateExerciseDropdown();
+
+  // Übungsname erst NACH Dropdown-Aufbau setzen, damit er nicht überschrieben wird
+  setTimeout(() => { document.getElementById('ex-name').value = ex.exercise_name; }, 0);
+
   document.getElementById('mo-ex-coach').innerHTML = '';
   openMo('mo-ex');
 }
@@ -379,14 +372,18 @@ export async function saveExerciseFromModal() {
   const name = document.getElementById('ex-name').value.trim();
   if (!name) { showToast('⚠️ Übungsname erforderlich'); return; }
   const weight = parseFloat(document.getElementById('ex-weight').value) || 0;
+  const dayName = document.getElementById('ex-day-name')?.value?.trim() || '';
+  const planGoal = document.getElementById('ex-goal-hidden')?.value || '';
   const payload = {
     name,
-    muscle: document.getElementById('ex-muscle').value,
+    muscle: document.getElementById('ex-muscle').value || 'Ganzkörper',
     sets: parseInt(document.getElementById('ex-sets').value) || 3,
     reps: parseInt(document.getElementById('ex-reps').value) || 10,
     weight,
     bodyweight: weight === 0,
     day: document.getElementById('ex-day').value || 'A',
+    dayName,
+    goal: planGoal,
   };
   const editId = document.getElementById('ex-edit-id').value;
 
@@ -398,7 +395,7 @@ export async function saveExerciseFromModal() {
         reps: payload.reps, weight_kg: payload.weight, is_bodyweight: payload.bodyweight, plan_day: payload.day,
       });
     } else {
-      await addPlanExercise(currentUser.id, { ...payload, goal: payload.planGoal });
+      await addPlanExercise(currentUser.id, payload);
     }
     await refreshMyPlan();
     closeMo('mo-ex');
@@ -418,8 +415,7 @@ async function renderWorkoutHistory() {
         <div style="font-size:12px;color:var(--sub);margin-top:2px">${w.duration_min} Min · ${w.exercise_count} Übungen</div></div>
         <span class="tag ta">${new Date(w.performed_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
       </div></div>`).join('')
-    : `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Noch keine Workouts. Starte dein erstes!</div>`;
-}
+    : `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Noch keine Workouts. Starte dein erstes!</div>`; }
 
 // ── PROGRESSION ──────────────────────────────────────────────────────────
 export async function renderProgression() {
@@ -458,12 +454,10 @@ export async function renderProgression() {
         <div class="pk"><div class="pk-l">Sessions</div><div class="pk-v" style="color:var(--sub)">${hist.length}</div></div>
       </div>
     </div>`;
-  }).join('') || `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Führe dein erstes Workout durch um Daten zu sehen.</div>`;
-}
+  }).join('') || `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Führe dein erstes Workout durch um Daten zu sehen.</div>`; }
 
 export function renderWorkout() {
   renderActiveWorkout();
   if (activeWTab === 'coach') renderCoachPlan();
   else if (activeWTab === 'mine') renderMyPlan();
-  else if (activeWTab === 'history') renderWorkoutHistory();
-}
+  else if (activeWTab === 'history') renderWorkoutHistory(); }
