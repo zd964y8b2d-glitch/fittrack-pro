@@ -366,9 +366,6 @@ function openAddExToMine(day, goal) {
 
   document.getElementById('mo-ex-title').textContent = 'Übung hinzufügen – Tag ' + day + (goal ? ' · ' + (goalLabels[goal]||goal) : '');
   document.getElementById('ex-name').value = '';
-  document.getElementById('ex-sets').value = '3';
-  document.getElementById('ex-reps').value = '10';
-  document.getElementById('ex-weight').value = '0';
   document.getElementById('ex-day').value = day;
   const dayNameEl = document.getElementById('ex-day-name');
   if (dayNameEl) dayNameEl.value = existingDayName;
