@@ -63,7 +63,10 @@ export async function addPlanExercise(userId, ex) {
     .insert({
       user_id: userId, kind: 'plan_exercise', exercise_name: ex.name,
       muscle_group: ex.muscle, plan_day: ex.day, sets: ex.sets,
-      reps: ex.reps, weight_kg: ex.weight, is_bodyweight: ex.bodyweight, history: [],
+      reps: ex.reps, weight_kg: ex.weight, is_bodyweight: ex.bodyweight,
+      plan_goal: ex.goal || null,
+      day_name: ex.dayName || null,
+      history: [],
     })
     .select().single();
   if (error) throw error;
@@ -88,7 +91,8 @@ export async function appendExerciseHistory(id, currentHistory, entry) {
   const lastIdx = updated.length - 1;
   if (lastIdx >= 0 && updated[lastIdx].date === today) updated[lastIdx] = entry;
   else updated.push(entry);
-  return updatePlanExercise(id, { history: updated, sets: entry.sets, reps: entry.reps, weight_kg: entry.weight }); }
+  return updatePlanExercise(id, { history: updated, sets: entry.sets, reps: entry.reps, weight_kg: entry.weight });
+}
 
 export async function getMealsForToday(userId) {
   const startOfDay = new Date();
