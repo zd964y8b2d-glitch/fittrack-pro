@@ -4,13 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
-<!-- ── PWA / iOS Safari Meta-Tags ────────────────────────────────────── --> <meta name="apple-mobile-web-app-capable" content="yes"> <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <meta name="apple-mobile-web-app-title" content="FitTrack"> <meta name="theme-color" content="#070709"> <meta name="mobile-web-app-capable" content="yes"> <link rel="manifest" href="/manifest.json"> <link rel="apple-touch-icon" href="/icons/icon-192.png">
+<!-- ── PWA / iOS Safari Meta-Tags ────────────────────────────────────── -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FitTrack">
+<meta name="theme-color" content="#070709">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 
 <title>FitTrack Pro</title>
-<link rel="stylesheet" href="/src/css/styles.css"> </head> <body>
+<link rel="stylesheet" href="/src/css/styles.css">
+</head>
+<body>
 
 <!-- ═══ AUTH ═══ -->
-<div id="page-auth" class="page active"> <div class="auth-wrap">
+<div id="page-auth" class="page active">
+<div class="auth-wrap">
   <div class="auth-logo">
     <div class="logo-icon">💪</div>
     <h1>FitTrack Pro</h1>
@@ -73,9 +83,13 @@
     <h1 id="ob-title" style="font-size:22px;font-weight:800;margin-top:3px;letter-spacing:-.3px"></h1>
   </div>
   <div class="coach-bubble" id="ob-bubble"><div class="coach-lbl">COACH</div><span id="ob-msg"></span></div>
-  <div class="ob-body" id="ob-body"></div> </div> <div class="ob-footer">
+  <div class="ob-body" id="ob-body"></div>
+</div>
+<div class="ob-footer">
   <button class="btn-sec" id="ob-back" style="display:none">← Zurück</button>
-  <button class="btn-p btn-nxt" id="ob-next">Weiter →</button> </div> </div>
+  <button class="btn-p btn-nxt" id="ob-next">Weiter →</button>
+</div>
+</div>
 
 <!-- ═══ MAIN APP ═══ -->
 <div id="page-app" class="page">
@@ -90,7 +104,7 @@
       <div id="home-tip"></div>
       <div class="card" id="home-macros"></div>
       <div class="card" id="home-next-workout"></div>
-
+      <button class="btn-p" id="btn-start-workout-home" style="margin-top:2px">⚡ Workout starten</button>
     </div>
   </div>
 
@@ -180,27 +194,48 @@
   <div class="mh"></div><button class="mc" id="btn-close-ex-modal">✕</button>
   <div class="mt" id="mo-ex-title">Übung hinzufügen</div>
   <div id="mo-ex-coach" style="margin-bottom:12px"></div>
-  <div class="ig"><label>Übungsname</label><input id="ex-name" class="oi" type="text" placeholder="z.B. Bankdrücken"></div>
-  <div class="ig"><label>Muskelgruppe</label>
-    <select id="ex-muscle" class="oi">
+  <div class="ig"><label>Plan-Tag</label>
+    <select id="ex-day" class="oi">
+      <option value="A">Tag A</option><option value="B">Tag B</option>
+      <option value="C">Tag C</option><option value="D">Tag D</option>
+      <option value="E">Tag E</option><option value="F">Tag F</option>
+      <option value="G">Tag G</option>
+    </select>
+  </div>
+  <div class="ig"><label>Plan-Tag Bezeichnung (optional)</label>
+    <input id="ex-day-name" class="oi" type="text" placeholder="z.B. Brust &amp; Trizeps">
+  </div>
+  <!-- Toggle Kraft / Ausdauer -->
+  <div class="ig" style="display:flex;gap:8px;margin-bottom:4px">
+    <button type="button" onclick="setExMode(false)" id="ex-mode-kraft" style="flex:1;padding:9px;border-radius:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff">💪 Kraft</button>
+    <button type="button" onclick="setExMode(true)"  id="ex-mode-aus"   style="flex:1;padding:9px;border-radius:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;background:var(--surface);color:var(--sub)">🏃 Ausdauer</button>
+  </div>
+  <div class="ig"><label id="ex-muscle-label">Muskelgruppe</label>
+    <select id="ex-muscle" class="oi" onchange="updateExerciseDropdown()">
+      <option value="">-- Muskelgruppe wählen --</option>
       <option>Brust</option><option>Rücken</option><option>Schultern</option>
       <option>Bizeps</option><option>Trizeps</option><option>Beine</option>
       <option>Gesäß</option><option>Bauch</option><option>Waden</option><option>Ganzkörper</option>
     </select>
   </div>
+  <div class="ig"><label>Übung (Vorlage)</label>
+    <select id="ex-name-select" class="oi" onchange="onExerciseSelect()" style="margin-bottom:8px">
+      <option value="">-- Vorlage wählen oder manuell eingeben --</option>
+    </select>
+  </div>
+  <div class="ig"><label>Übung (manuell)</label>
+    <input id="ex-name" class="oi" type="text" placeholder="Übungsname eingeben...">
+  </div>
   <div class="ir">
     <div class="ig"><label>Sätze</label><input id="ex-sets" class="oi" type="number" inputmode="numeric" placeholder="4"></div>
     <div class="ig"><label>Wiederholungen</label><input id="ex-reps" class="oi" type="number" inputmode="numeric" placeholder="10"></div>
   </div>
-  <div class="ig"><label>Gewicht (kg · 0 = Körpergewicht)</label><input id="ex-weight" class="oi" type="number" inputmode="decimal" placeholder="60"></div>
-  <div class="ig"><label>Plan-Tag</label>
-    <select id="ex-day" class="oi">
-      <option value="A">Tag A</option><option value="B">Tag B</option>
-      <option value="C">Tag C</option><option value="D">Tag D</option>
-    </select>
+  <div class="ig"><label>Gewicht (kg · 0 = Körpergewicht)</label>
+    <input id="ex-weight" class="oi" type="number" inputmode="decimal" placeholder="0">
   </div>
   <input type="hidden" id="ex-edit-id">
-  <button class="btn-p" id="btn-save-ex" style="margin-top:6px">Speichern</button>
+  <input type="hidden" id="ex-goal-hidden">
+  <button class="btn-p" id="btn-save-ex" style="margin-top:8px">Speichern</button>
 </div>
 </div>
 
@@ -215,5 +250,98 @@
 
 <div id="toast" class="toast"></div>
 
-<script type="module" src="/src/js/app.js"></script> </body> </html>
 
+<script type="module">
+import { getExercisesForMuscleBoth, getEnduranceByCategory, ENDURANCE_CATEGORIES } from '/src/js/exerciseDB.js';
+
+window.updateExerciseDropdown = function() {
+  const muscle = document.getElementById('ex-muscle').value;
+  const select = document.getElementById('ex-name-select');
+  select.innerHTML = '<option value="">-- Vorlage wählen oder manuell eingeben --</option>';
+  if (!muscle) return;
+
+  // Ausdauer-Modus: Muskelgruppe ist eine Ausdauer-Kategorie
+  if (window._enduranceMode) {
+    const exs = getEnduranceByCategory(muscle);
+    exs.forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify(ex);
+      opt.textContent = ex.name + ' (' + ex.reps + ' Min)';
+      select.appendChild(opt);
+    });
+    return;
+  }
+
+  const exercises = getExercisesForMuscleBoth(muscle);
+  const gymEx = exercises.filter(e => e._type === 'Gym');
+  const flEx  = exercises.filter(e => e._type === 'Freeletics');
+
+  if (gymEx.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = '🏋️ Fitnessstudio';
+    gymEx.forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify(ex);
+      opt.textContent = ex.name;
+      grp.appendChild(opt);
+    });
+    select.appendChild(grp);
+  }
+
+  if (flEx.length) {
+    const grp = document.createElement('optgroup');
+    grp.label = '🔄 Freeletics / Bodyweight';
+    flEx.forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify(ex);
+      opt.textContent = ex.name;
+      grp.appendChild(opt);
+    });
+    select.appendChild(grp);
+  }
+};
+
+window._enduranceMode = false;
+window.setExMode = function(endurance) {
+  window._enduranceMode = endurance;
+  const kraftBtn = document.getElementById('ex-mode-kraft');
+  const ausBtn   = document.getElementById('ex-mode-aus');
+  const lbl      = document.getElementById('ex-muscle-label');
+  const muscleEl = document.getElementById('ex-muscle');
+
+  kraftBtn.style.background = endurance ? 'var(--surface)' : 'var(--accent)';
+  kraftBtn.style.color      = endurance ? 'var(--sub)'     : '#fff';
+  ausBtn.style.background   = endurance ? 'var(--accent)'  : 'var(--surface)';
+  ausBtn.style.color        = endurance ? '#fff'           : 'var(--sub)';
+
+  lbl.textContent = endurance ? 'Kategorie' : 'Muskelgruppe';
+
+  // Optionen tauschen
+  if (endurance) {
+    muscleEl.innerHTML = '<option value="">-- Kategorie wählen --</option>' +
+      ENDURANCE_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+  } else {
+    muscleEl.innerHTML = '<option value="">-- Muskelgruppe wählen --</option>' +
+      ['Brust','Rücken','Schultern','Bizeps','Trizeps','Beine','Gesäß','Bauch','Waden','Ganzkörper']
+      .map(m => `<option value="${m}">${m}</option>`).join('');
+  }
+  document.getElementById('ex-name-select').innerHTML = '<option value="">-- Vorlage wählen --</option>';
+  document.getElementById('ex-name').value = '';
+};
+
+window.onExerciseSelect = function() {
+  const select = document.getElementById('ex-name-select');
+  const val = select.value;
+  if (!val) return;
+  try {
+    const ex = JSON.parse(val);
+    document.getElementById('ex-name').value = ex.name;
+    document.getElementById('ex-sets').value = ex.sets;
+    document.getElementById('ex-reps').value = ex.reps;
+    document.getElementById('ex-weight').value = ex.weight;
+  } catch(e) {}
+};
+</script>
+<script type="module" src="/src/js/app.js"></script>
+</body>
+</html>
