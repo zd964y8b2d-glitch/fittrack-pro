@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+<!-- ── PWA / iOS Safari Meta-Tags ────────────────────────────────────── -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FitTrack">
+<meta name="theme-color" content="#070709">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+<title>FitTrack Pro</title>
+<link rel="stylesheet" href="/src/css/styles.css">
+</head>
+<body>
+
+<!-- ═══ AUTH ═══ -->
+<div id="page-auth" class="page active">
+<div class="auth-wrap">
+  <div class="auth-logo">
+    <div class="logo-icon">💪</div>
+    <h1>FitTrack Pro</h1>
+    <p>Dein persönlicher Bodybuilding-Coach</p>
+  </div>
+  <div class="auth-tabs">
+    <button class="auth-tab active">Anmelden</button>
+    <button class="auth-tab">Registrieren</button>
+  </div>
+  <div id="auth-err" class="auth-err"></div>
+
+  <!-- Login -->
+  <div id="auth-login">
+    <label class="f-lbl">E-Mail</label>
+    <input id="l-email" class="f-inp" type="email" placeholder="name@email.de" autocomplete="email">
+    <label class="f-lbl">Passwort</label>
+    <input id="l-pass" class="f-inp" type="password" placeholder="••••••••" autocomplete="current-password">
+    <button class="btn-p" id="btn-login">Anmelden</button>
+    <a href="#" id="forgot-pw-link" class="link-sm">Passwort vergessen?</a>
+  </div>
+
+  <!-- Passwort vergessen: E-Mail anfordern -->
+  <div id="forgot-pw-box" style="display:none">
+    <p style="font-size:13px;color:var(--sub);margin-bottom:14px">Gib deine E-Mail-Adresse ein. Wir senden dir einen Link zum Zurücksetzen.</p>
+    <label class="f-lbl">E-Mail</label>
+    <input id="fp-email" class="f-inp" type="email" placeholder="name@email.de" autocomplete="email">
+    <button class="btn-p" id="btn-forgot-pw-send">Link senden</button>
+    <a href="#" id="forgot-pw-cancel" class="link-sm">Zurück zum Login</a>
+  </div>
+
+  <!-- Neues Passwort setzen (nach Klick auf Mail-Link) -->
+  <div id="reset-password-box" style="display:none">
+    <p style="font-size:13px;color:var(--sub);margin-bottom:14px">Lege ein neues Passwort fest.</p>
+    <label class="f-lbl">Neues Passwort</label>
+    <input id="np-pass1" class="f-inp" type="password" placeholder="Min. 6 Zeichen">
+    <label class="f-lbl">Passwort bestätigen</label>
+    <input id="np-pass2" class="f-inp" type="password" placeholder="Min. 6 Zeichen">
+    <button class="btn-p" id="btn-set-new-pw">Passwort speichern</button>
+  </div>
+
+  <!-- Registrierung -->
+  <div id="auth-reg" style="display:none">
+    <label class="f-lbl">Name</label>
+    <input id="r-name" class="f-inp" type="text" placeholder="Dein Name">
+    <label class="f-lbl">E-Mail</label>
+    <input id="r-email" class="f-inp" type="email" placeholder="name@email.de">
+    <label class="f-lbl">Passwort</label>
+    <input id="r-pass" class="f-inp" type="password" placeholder="Min. 6 Zeichen">
+    <button class="btn-p" id="btn-register">Account erstellen</button>
+  </div>
+</div>
+</div>
+
+<!-- ═══ ONBOARDING ═══ -->
+<div id="page-onboarding" class="page">
+<div class="ob-wrap">
+  <div class="ob-header">
+    <div class="ob-step-bar" id="ob-bar"></div>
+    <div style="font-size:11px;color:var(--sub);font-weight:600;letter-spacing:.4px">COACH SETUP</div>
+    <h1 id="ob-title" style="font-size:22px;font-weight:800;margin-top:3px;letter-spacing:-.3px"></h1>
+  </div>
+  <div class="coach-bubble" id="ob-bubble"><div class="coach-lbl">COACH</div><span id="ob-msg"></span></div>
+  <div class="ob-body" id="ob-body"></div>
+</div>
+<div class="ob-footer">
+  <button class="btn-sec" id="ob-back" style="display:none">← Zurück</button>
+  <button class="btn-p btn-nxt" id="ob-next">Weiter →</button>
+</div>
+</div>
+
+<!-- ═══ MAIN APP ═══ -->
+<div id="page-app" class="page">
+  <!-- HOME -->
+  <div id="app-home" class="app-screen active">
+    <div class="app-header">
+      <div class="sub" id="home-sub"></div>
+      <h1 id="home-title"></h1>
+    </div>
+    <div class="pad">
+      <div class="sg" id="home-stats"></div>
+      <div id="home-tip"></div>
+      <div class="card" id="home-macros"></div>
+      <div class="card" id="home-next-workout"></div>
+      <button class="btn-p" id="btn-start-workout-home" style="margin-top:2px">⚡ Workout starten</button>
+    </div>
+  </div>
+
+  <!-- WORKOUT -->
+  <div id="app-workout" class="app-screen">
+    <div class="app-header">
+      <div class="sub">Training</div>
+      <h1>Workout 🏋️</h1>
+    </div>
+    <div class="pad">
+      <div class="tab-bar">
+        <button class="tab-item active" id="wtab-active">Aktiv</button>
+        <button class="tab-item" id="wtab-coach">Coach-Plan</button>
+        <button class="tab-item" id="wtab-mine">Mein Plan</button>
+        <button class="tab-item" id="wtab-history">Verlauf</button>
+      </div>
+      <div id="wv-active"></div>
+      <div id="wv-coach" style="display:none"></div>
+      <div id="wv-mine" style="display:none"></div>
+      <div id="wv-history" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- PROGRESSION -->
+  <div id="app-progress" class="app-screen">
+    <div class="app-header"><div class="sub">Deine Entwicklung</div><h1>Progression 📈</h1></div>
+    <div class="pad" id="prog-list"></div>
+  </div>
+
+  <!-- NUTRITION -->
+  <div id="app-nutrition" class="app-screen">
+    <div class="app-header"><div class="sub" id="nutr-sub"></div><h1>Ernährung 🥗</h1></div>
+    <div class="pad">
+      <div class="card" id="nutr-card"></div>
+      <div class="row" style="margin-bottom:9px">
+        <div class="slbl" style="margin-bottom:0">Heute</div>
+        <button class="tag ta" style="cursor:pointer;border:none" id="btn-open-meal-modal">+ Mahlzeit</button>
+      </div>
+      <div id="meal-list"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="app-settings" class="app-screen">
+    <div class="app-header"><div class="sub" id="set-sub"></div><h1>Profil ⚙️</h1></div>
+    <div class="pad">
+      <div class="slbl">Körperprofil</div><div class="card" id="set-profile"></div>
+      <div class="slbl" style="margin-top:4px">Ziele & Makros</div><div class="card" id="set-goals"></div>
+      <div class="slbl" style="margin-top:4px">Training</div><div class="card" id="set-train"></div>
+      <div class="slbl" style="margin-top:4px">Account</div>
+      <div class="card"><div class="si" style="border:none">
+        <div class="si-l"><div class="si-name" style="color:var(--red)">Abmelden</div><div class="si-val">Account wechseln</div></div>
+        <div class="si-r" id="btn-logout">→</div>
+      </div></div>
+    </div>
+  </div>
+
+  <nav class="navbar">
+    <button class="nav-btn active" id="nav-home"><span class="ni">⊞</span><span>Start</span></button>
+    <button class="nav-btn" id="nav-workout"><span class="ni">🏋️</span><span>Workout</span></button>
+    <button class="nav-btn" id="nav-progress"><span class="ni">📈</span><span>Fortschritt</span></button>
+    <button class="nav-btn" id="nav-nutrition"><span class="ni">🥗</span><span>Ernährung</span></button>
+    <button class="nav-btn" id="nav-settings"><span class="ni">⚙️</span><span>Profil</span></button>
+  </nav>
+</div>
+
+<!-- ═══ MODALS ═══ -->
+<div class="mo" id="mo-meal">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-meal-modal">✕</button>
+  <div class="mt">Mahlzeit eintragen</div>
+  <div class="ig"><label>Name</label><input id="mn-name" class="oi" type="text" placeholder="z.B. Hähnchen & Reis"></div>
+  <div class="ir">
+    <div class="ig"><label>Kalorien</label><input id="mn-cal" class="oi" type="number" inputmode="numeric" placeholder="450"></div>
+    <div class="ig"><label>Protein (g)</label><input id="mn-p" class="oi" type="number" inputmode="numeric" placeholder="40"></div>
+  </div>
+  <div class="ir">
+    <div class="ig"><label>Kohlenhydrate (g)</label><input id="mn-c" class="oi" type="number" inputmode="numeric" placeholder="55"></div>
+    <div class="ig"><label>Fett (g)</label><input id="mn-f" class="oi" type="number" inputmode="numeric" placeholder="10"></div>
+  </div>
+  <button class="btn-p" id="btn-save-meal">Speichern</button>
+</div>
+</div>
+
+<div class="mo" id="mo-ex">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-ex-modal">✕</button>
+  <div class="mt" id="mo-ex-title">Übung hinzufügen</div>
+  <div id="mo-ex-coach" style="margin-bottom:12px"></div>
+  <div class="ig"><label>Übungsname</label><input id="ex-name" class="oi" type="text" placeholder="z.B. Bankdrücken"></div>
+  <div class="ig"><label>Muskelgruppe</label>
+    <select id="ex-muscle" class="oi">
+      <option>Brust</option><option>Rücken</option><option>Schultern</option>
+      <option>Bizeps</option><option>Trizeps</option><option>Beine</option>
+      <option>Gesäß</option><option>Bauch</option><option>Waden</option><option>Ganzkörper</option>
+    </select>
+  </div>
+  <div class="ir">
+    <div class="ig"><label>Sätze</label><input id="ex-sets" class="oi" type="number" inputmode="numeric" placeholder="4"></div>
+    <div class="ig"><label>Wiederholungen</label><input id="ex-reps" class="oi" type="number" inputmode="numeric" placeholder="10"></div>
+  </div>
+  <div class="ig"><label>Gewicht (kg · 0 = Körpergewicht)</label><input id="ex-weight" class="oi" type="number" inputmode="decimal" placeholder="60"></div>
+  <div class="ig"><label>Plan-Tag</label>
+    <select id="ex-day" class="oi">
+      <option value="A">Tag A</option><option value="B">Tag B</option>
+      <option value="C">Tag C</option><option value="D">Tag D</option>
+    </select>
+  </div>
+  <input type="hidden" id="ex-edit-id">
+  <button class="btn-p" id="btn-save-ex" style="margin-top:6px">Speichern</button>
+</div>
+</div>
+
+<div class="mo" id="mo-goal">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-goal-modal">✕</button>
+  <div class="mt" id="mg-title">Anpassen</div>
+  <div id="mg-body"></div>
+  <button class="btn-p" id="btn-save-goal" style="margin-top:14px">Speichern</button>
+</div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="/src/js/app.js"></script>
+</body>
+</html>

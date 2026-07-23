@@ -1,0 +1,6 @@
+# ═══════════════════════════════════════════════════════════════════════
+# _redirects – Cloudflare Pages SPA-Fallback
+# Sorgt dafür, dass alle Pfade (z.B. der Passwort-Reset-Link mit Hash-
+# Fragment) auf index.html zeigen, da diese App eine Single-Page-App ist.
+# ═══════════════════════════════════════════════════════════════════════
+/*    /index.html   200

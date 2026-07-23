@@ -1,0 +1,37 @@
+# ═══════════════════════════════════════════════════════════════════════
+# _headers – Cloudflare Pages Custom Headers
+# Wird automatisch von Cloudflare Pages gelesen (muss im Deploy-Root liegen,
+# also in public/, da dieser Ordner als "Build output directory" konfiguriert wird).
+# ═══════════════════════════════════════════════════════════════════════
+
+# Service Worker: NIE cachen, damit Updates sofort erkannt werden
+# (entscheidend für Anforderung 10 – automatische Updates ohne App Store)
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# Manifest: kurz cachen
+/manifest.json
+  Cache-Control: public, max-age=3600
+
+# HTML: nie aus dem Edge-Cache servieren, damit neue Deploys sofort sichtbar sind
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# JS/CSS: lang cachen, da build.sh bei jedem Deploy ohnehin den Service
+# Worker dazu bringt, neue Versionen zu laden (Cache-Busting über SW-Versionierung)
+/src/*
+  Cache-Control: public, max-age=86400
+
+# Icons: lang cachen, ändern sich praktisch nie
+/icons/*
+  Cache-Control: public, max-age=604800
+
+# Sicherheits-Header für alle Routen
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
