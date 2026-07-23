@@ -232,28 +232,98 @@ export function dayTip(days) {
 }
 
 // ── Plananalyse (Warnungen zu fehlenden Muskelgruppen etc.) ─────────────
-export function analyzeMyPlan(exercises) {
+export function analyzeMyPlan(exercises, goals) {
   const byDay = {};
+  const byGoal = {};
   const allMuscles = {};
+
   exercises.forEach((ex) => {
     if (!byDay[ex.plan_day]) byDay[ex.plan_day] = [];
     byDay[ex.plan_day].push(ex);
     allMuscles[ex.muscle_group] = (allMuscles[ex.muscle_group] || 0) + 1;
+    const g = ex.plan_goal || (goals?.[0]) || 'muscle';
+    if (!byGoal[g]) byGoal[g] = [];
+    byGoal[g].push(ex);
   });
+
   const warnings = {};
-  const missing = MUSCLE_GROUPS_IMPORTANT.filter((m) => !allMuscles[m]);
-  if (missing.length) warnings['_global'] = [`Fehlende Muskelgruppen im Plan: ${missing.join(', ')}. Als Coach empfehle ich, diese zu ergänzen.`];
+
+  // Nur für Kraft-Ziele fehlende Muskelgruppen prüfen
+  const kraftGoals = (goals || ['muscle']).filter(g => g !== 'endurance');
+  if (kraftGoals.length) {
+    const missing = MUSCLE_GROUPS_IMPORTANT.filter((m) => !allMuscles[m]);
+    if (missing.length && exercises.length > 0)
+      warnings['_global'] = [`Kraft-Plan: Fehlende Muskelgruppen: ${missing.join(', ')}.`];
+  }
+
   Object.keys(byDay).forEach((day) => {
     const exes = byDay[day];
     const muscles = exes.map((e) => e.muscle_group);
     const w = [];
     const unique = [...new Set(muscles)];
-    if (unique.length > 4) w.push(`Tag ${day}: Zu viele Muskelgruppen (${unique.length}). Max. 3–4 pro Tag für optimale Regeneration.`);
+    if (unique.length > 4) w.push(`Tag ${day}: Zu viele Muskelgruppen (${unique.length}). Max. 3–4 pro Tag.`);
     if (muscles.includes('Brust') && !muscles.includes('Rücken') && muscles.filter((m) => m === 'Brust').length > 2)
-      w.push(`Tag ${day}: Viel Brust-Training ohne Rücken-Ausgleich. Risiko für Haltungsschäden!`);
+      w.push(`Tag ${day}: Brust ohne Rücken-Ausgleich – Haltungsschäden möglich!`);
     if (muscles.includes('Bizeps') && !muscles.includes('Trizeps'))
-      w.push(`Tag ${day}: Bizeps ohne Trizeps. Antagonisten sollten ausgeglichen trainiert werden.`);
+      w.push(`Tag ${day}: Bizeps ohne Trizeps – Antagonisten ausgleichen!`);
     if (w.length) warnings[day] = w;
   });
-  return { byDay, allMuscles, warnings };
+
+  return { byDay, byGoal, allMuscles, warnings };
+}
+
+// ── Ziel-spezifische Plananalyse ─────────────────────────────────────────
+// Prüft ob der Plan die Anforderungen jedes Ziels erfüllt.
+// Kardio-Ziele (cut, endurance) brauchen explizit Ausdauer-Einheiten.
+export function analyzePlanByGoal(exercises, goals) {
+  const GOAL_COLORS = {
+    muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623',
+    endurance: '#2ECC71', health: '#3498DB'
+  };
+  const ENDURANCE_MUSCLES = ['Ganzkörper']; // Ausdauer-Übungen haben oft Ganzkörper als Gruppe
+  const CARDIO_KEYWORDS = ['Lauf','Radfahren','Schwimmen','HIIT','Cardio','Intervall','Burpee',
+    'Jumping','Sprint','Rudern','Wandern','Tabata','Spinning','Joggen'];
+
+  return (goals || ['muscle']).map(goal => {
+    const gInfo = GOAL_OPTS.find(o => o.v === goal) || { l: goal, i: '🎯', v: goal };
+    const col = GOAL_COLORS[goal] || '#7B6EF6';
+    const goalExes = exercises.filter(e => e.plan_goal === goal || (!e.plan_goal && goal === goals[0]));
+    const totalDays = [...new Set(goalExes.map(e => e.plan_day))].length;
+    const warnings = [];
+
+    // Kardio-Einheiten zählen (Übungen mit Ausdauer-Keywords)
+    const cardioCount = goalExes.filter(e =>
+      CARDIO_KEYWORDS.some(kw => e.exercise_name?.includes(kw)) ||
+      e.muscle_group === 'Ganzkörper'
+    ).length;
+
+    const cardiodays = [...new Set(
+      goalExes
+        .filter(e => CARDIO_KEYWORDS.some(kw => e.exercise_name?.includes(kw)) || e.muscle_group === 'Ganzkörper')
+        .map(e => e.plan_day)
+    )].length;
+
+    if (goal === 'cut') {
+      if (cardiodays < 2)
+        warnings.push(`${gInfo.i} Fettabbau: Mindestens 2 Kardio-Einheiten/Woche empfohlen – aktuell ${cardiodays}. Kardio erhöht das Kaloriendefizit und schützt die Muskelmasse.`);
+      if (totalDays < 3)
+        warnings.push(`${gInfo.i} Fettabbau: Mindestens 3 Trainingstage empfohlen für optimalen Stoffwechsel.`);
+    } else if (goal === 'endurance') {
+      if (totalDays < 2)
+        warnings.push(`${gInfo.i} Ausdauer: Mindestens 2 Ausdauereinheiten/Woche für messbare Fortschritte.`);
+      if (cardiodays === 0 && goalExes.length > 0)
+        warnings.push(`${gInfo.i} Ausdauer: Keine Kardio-Einheiten gefunden. Füge Lauf, Radfahren oder HIIT hinzu.`);
+    } else if (goal === 'recomp') {
+      if (cardiodays < 1 && totalDays > 0)
+        warnings.push(`${gInfo.i} Rekomposition: 1–2 Kardio-Einheiten/Woche unterstützen den Fettabbau bei gleichzeitigem Muskelaufbau.`);
+    } else if (goal === 'muscle') {
+      if (totalDays < 2 && exercises.length > 0)
+        warnings.push(`${gInfo.i} Muskelaufbau: Mindestens 2–3 Kraft-Einheiten/Woche für progressive Überladung.`);
+    } else if (goal === 'health') {
+      if (totalDays < 2 && exercises.length > 0)
+        warnings.push(`${gInfo.i} Gesundheit: Kombiniere Kraft und Ausdauer für den besten Gesundheitseffekt.`);
+    }
+
+    return { goal, label: gInfo.l, icon: gInfo.i, color: col, totalDays, cardiodays, warnings };
+  });
 }
