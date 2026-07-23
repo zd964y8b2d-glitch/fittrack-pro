@@ -49,6 +49,11 @@ export async function addWorkoutLog(userId, { workoutName, durationMin, exercise
   return data;
 }
 
+export async function deleteWorkoutLog(id) {
+  const { error } = await supabase.from('workouts').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function getMyPlan(userId) {
   const { data, error } = await supabase
     .from('workouts').select('*').eq('user_id', userId).eq('kind', 'plan_exercise')
@@ -66,6 +71,7 @@ export async function addPlanExercise(userId, ex) {
       reps: ex.reps, weight_kg: ex.weight, is_bodyweight: ex.bodyweight,
       plan_goal: ex.goal || null,
       day_name: ex.dayName || null,
+      set_details: ex.setDetails ? JSON.stringify(ex.setDetails) : null,
       history: [],
     })
     .select().single();
