@@ -100,12 +100,17 @@ function renderMealsBySlot() {
   let html = slots.map((slot) => {
     const meals = byslot[slot.id] || [];
     const slotTotal = mealTotals(meals);
+    const hasData = meals.length > 0;
     return `<div class="day-card" style="margin-bottom:10px">
-      <div class="day-hdr">
-        <div class="day-name">${slot.label}</div>
-        <span class="tag ta">${slotTotal.cal} kcal</span>
+      <div class="row" style="align-items:center;margin-bottom:${hasData ? '10px' : '0'}">
+        <div style="flex:1">
+          <div class="day-name">${slot.label}</div>
+          <div style="font-size:13px;font-weight:800;color:var(--orange);margin-top:2px">${slotTotal.cal} kcal</div>
+          ${hasData ? macroLegendHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
+        </div>
+        ${hasData ? macroDonutHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
       </div>
-      ${meals.length ? meals.map((ml) => mealRowHTML(ml)).join('') : `<div style="font-size:12px;color:var(--muted);padding:8px 0">Noch nichts eingetragen</div>`}
+      ${meals.length ? meals.map((ml) => mealRowHTML(ml)).join('') : `<div style="font-size:12px;color:var(--muted);padding:4px 0 0">Noch nichts eingetragen</div>`}
     </div>`;
   }).join('');
 
@@ -124,6 +129,52 @@ function renderMealsBySlot() {
   document.querySelectorAll('[data-del-meal]').forEach((btn) => {
     btn.addEventListener('click', () => confirmDeleteMeal(btn.dataset.delMeal));
   });
+}
+
+// Zeichnet ein kompaktes Mehrfarben-Ring-Diagramm für die Makro-Verteilung
+// (Protein/Kohlenhydrate/Fett) einer Mahlzeitengruppe. Bewusst schlicht und
+// ohne verspielte Effekte gehalten - passt zum restlichen Coach-Design.
+function macroDonutHTML(protein, carbs, fat, size = 56) {
+  const pCal = protein * 4, cCal = carbs * 4, fCal = fat * 9;
+  const total = pCal + cCal + fCal;
+  if (total <= 0) {
+    return `<div style="width:${size}px;height:${size}px;border-radius:50%;border:2px dashed var(--border);flex-shrink:0"></div>`;
+  }
+
+  const stroke = 7;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const pPct = pCal / total, cPct = cCal / total, fPct = fCal / total;
+
+  const pLen = circ * pPct;
+  const cLen = circ * cPct;
+  const fLen = circ * fPct;
+
+  // Farben konsistent mit den bestehenden Makro-Farben im Rest der App
+  const pColor = 'var(--accent)';
+  const cColor = 'var(--green)';
+  const fColor = 'var(--orange)';
+
+  return `<div style="position:relative;width:${size}px;height:${size}px;flex-shrink:0">
+    <svg width="${size}" height="${size}" style="transform:rotate(-90deg)">
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--border)" stroke-width="${stroke}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${fColor}" stroke-width="${stroke}"
+        stroke-dasharray="${circ}" stroke-dashoffset="0" stroke-linecap="butt"
+        style="opacity:0.9" />
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${cColor}" stroke-width="${stroke}"
+        stroke-dasharray="${cLen + pLen} ${circ}" stroke-dashoffset="0" stroke-linecap="butt" />
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${pColor}" stroke-width="${stroke}"
+        stroke-dasharray="${pLen} ${circ}" stroke-dashoffset="0" stroke-linecap="butt" />
+    </svg>
+  </div>`;
+}
+
+function macroLegendHTML(protein, carbs, fat) {
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px">
+    <span style="font-size:10px;color:var(--sub)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:3px"></span>${protein}g</span>
+    <span style="font-size:10px;color:var(--sub)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:3px"></span>${carbs}g</span>
+    <span style="font-size:10px;color:var(--sub)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--orange);margin-right:3px"></span>${fat}g</span>
+  </div>`;
 }
 
 function mealRowHTML(ml) {
@@ -205,14 +256,13 @@ function renderCoachNutritionPlan() {
     </div>
     ${plan.map((slot) => `
       <div class="day-card" style="margin-bottom:10px">
-        <div class="day-hdr">
-          <div class="day-name">${slot.label}</div>
-          <span class="tag to">${slot.kcal} kcal</span>
-        </div>
-        <div class="macro-grid">
-          <div class="macro-tile"><div class="macro-val" style="color:var(--accent2)">${slot.protein}g</div><div class="macro-lbl">Protein</div></div>
-          <div class="macro-tile"><div class="macro-val" style="color:var(--green)">${slot.carbs}g</div><div class="macro-lbl">Kohlenh.</div></div>
-          <div class="macro-tile"><div class="macro-val" style="color:var(--orange)">${slot.fat}g</div><div class="macro-lbl">Fett</div></div>
+        <div class="row" style="align-items:center">
+          <div style="flex:1">
+            <div class="day-name">${slot.label}</div>
+            <div style="font-size:13px;font-weight:800;color:var(--orange);margin-top:2px">${slot.kcal} kcal</div>
+            ${macroLegendHTML(slot.protein, slot.carbs, slot.fat)}
+          </div>
+          ${macroDonutHTML(slot.protein, slot.carbs, slot.fat)}
         </div>
       </div>`).join('')}`;
 }
