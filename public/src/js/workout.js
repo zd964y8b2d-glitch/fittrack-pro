@@ -1,15 +1,23 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // workout.js
-// Aktives Workout (Sätze/Wdh./Gewicht live anpassbar), Coach-Plan-Ansicht, // individueller "Mein Plan" (frei erstellbar inkl. Coach-Warnungen), // Workout-Verlauf, Progressions-Charts.
+// Aktives Workout (Sätze/Wdh./Gewicht live anpassbar), Coach-Plan-Ansicht,
+// individueller "Mein Plan" (frei erstellbar inkl. Coach-Warnungen),
+// Workout-Verlauf, Progressions-Charts.
 // ═══════════════════════════════════════════════════════════════════════════
 import {
   getMyPlan, addPlanExercise, updatePlanExercise, deletePlanExercise,
-  appendExerciseHistory, getWorkoutLogs, addWorkoutLog, deleteWorkoutLog, } from './api.js'; import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js'; import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js'; import { assertOnline } from './offline.js';
+  appendExerciseHistory, getWorkoutLogs, addWorkoutLog, deleteWorkoutLog,
+} from './api.js';
+import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js';
+import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js';
+import { assertOnline } from './offline.js';
 
 let currentUser = null;
 let currentProfile = null;
 let myPlanCache = [];
-let wActive = false, wTimer = null, wSecs = 0, wDone = 0; let sessData = {}; // index -> {weight, sets, reps} während einer aktiven Session let activeWTab = 'active';
+let wActive = false, wTimer = null, wSecs = 0, wDone = 0;
+let sessData = {}; // index -> {weight, sets, reps} während einer aktiven Session
+let activeWTab = 'active';
 
 export function initWorkoutModule(user, profile) {
   currentUser = user;
@@ -34,7 +42,9 @@ export function wTab(t) {
 }
 
 // ── AKTIVES WORKOUT ──────────────────────────────────────────────────────
-// sessData[i] = Array individueller Sätze: [{reps, weight, done}, ...] let expandedEx = {}; // index -> bool (aufgeklappt?) let activeDayLabel = 'Workout';
+// sessData[i] = Array individueller Sätze: [{reps, weight, done}, ...]
+let expandedEx = {}; // index -> bool (aufgeklappt?)
+let activeDayLabel = 'Workout';
 
 function getSessSets(i) {
   if (!sessData[i]) {
@@ -50,7 +60,8 @@ function getSessSets(i) {
 }
 
 function calcVolFromSets(sets, bw) {
-  return sets.reduce((sum, s) => sum + (bw ? s.reps : s.reps * s.weight), 0); }
+  return sets.reduce((sum, s) => sum + (bw ? s.reps : s.reps * s.weight), 0);
+}
 
 window.toggleExPanel = function(i) {
   expandedEx[i] = !expandedEx[i];
@@ -564,10 +575,12 @@ export async function renderProgression() {
         <div class="pk"><div class="pk-l">Sessions</div><div class="pk-v" style="color:var(--sub)">${hist.length}</div></div>
       </div>
     </div>`;
-  }).join('') || `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Führe dein erstes Workout durch um Daten zu sehen.</div>`; }
+  }).join('') || `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Führe dein erstes Workout durch um Daten zu sehen.</div>`;
+}
 
 export function renderWorkout() {
   renderActiveWorkout();
   if (activeWTab === 'coach') renderCoachPlan();
   else if (activeWTab === 'mine') renderMyPlan();
-  else if (activeWTab === 'history') renderWorkoutHistory(); }
+  else if (activeWTab === 'history') renderWorkoutHistory();
+}
