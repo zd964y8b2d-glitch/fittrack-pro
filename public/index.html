@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
@@ -176,16 +177,71 @@
 <div class="ms">
   <div class="mh"></div><button class="mc" id="btn-close-meal-modal">✕</button>
   <div class="mt">Mahlzeit eintragen</div>
-  <div class="ig"><label>Name</label><input id="mn-name" class="oi" type="text" placeholder="z.B. Hähnchen & Reis"></div>
-  <div class="ir">
-    <div class="ig"><label>Kalorien</label><input id="mn-cal" class="oi" type="number" inputmode="numeric" placeholder="450"></div>
-    <div class="ig"><label>Protein (g)</label><input id="mn-p" class="oi" type="number" inputmode="numeric" placeholder="40"></div>
+
+  <!-- Tabs: Suche / Barcode / Manuell -->
+  <div class="tab-bar" style="margin-bottom:14px">
+    <button class="tab-item active" id="mtab-search" data-mtab="search">🔍 Suche</button>
+    <button class="tab-item" id="mtab-scan" data-mtab="scan">📷 Scannen</button>
+    <button class="tab-item" id="mtab-manual" data-mtab="manual">✏️ Manuell</button>
   </div>
-  <div class="ir">
-    <div class="ig"><label>Kohlenhydrate (g)</label><input id="mn-c" class="oi" type="number" inputmode="numeric" placeholder="55"></div>
-    <div class="ig"><label>Fett (g)</label><input id="mn-f" class="oi" type="number" inputmode="numeric" placeholder="10"></div>
+
+  <!-- ── SUCHE ─────────────────────────────────────────────────── -->
+  <div id="mv-search">
+    <div class="ig">
+      <input id="food-search-input" class="oi" type="text" placeholder="z.B. Magerquark, Banane, Vollkornbrot..." autocomplete="off">
+    </div>
+    <div id="food-search-status" style="font-size:12px;color:var(--sub);padding:4px 2px 8px;display:none"></div>
+    <div id="food-search-results"></div>
   </div>
-  <button class="btn-p" id="btn-save-meal">Speichern</button>
+
+  <!-- ── BARCODE SCANNEN ───────────────────────────────────────── -->
+  <div id="mv-scan" style="display:none">
+    <div id="scanner-placeholder" class="coach-tip" style="margin-bottom:10px">
+      <div class="ct-icon">📷</div>
+      <div><div class="ct-lbl">BARCODE SCANNEN</div>
+      <div class="ct-txt">Richte die Kamera auf den Barcode der Verpackung. Kamerazugriff wird beim ersten Mal angefragt.</div></div>
+    </div>
+    <div id="scanner-video-wrap" style="display:none;border-radius:16px;overflow:hidden;margin-bottom:10px;background:#000">
+      <div id="scanner-video" style="width:100%"></div>
+    </div>
+    <button class="btn-p" id="btn-start-scan">📷 Kamera starten</button>
+    <button class="btn-sec" id="btn-stop-scan" style="display:none;margin-top:8px">Scan abbrechen</button>
+    <div id="scan-status" style="font-size:12px;color:var(--sub);padding:8px 2px;text-align:center"></div>
+  </div>
+
+  <!-- ── PRODUKT-DETAIL (nach Auswahl aus Suche/Scan) ─────────────── -->
+  <div id="mv-product-detail" style="display:none">
+    <div class="card" id="product-detail-card" style="margin-bottom:14px"></div>
+    <div class="ig">
+      <label>Menge (Gramm)</label>
+      <div class="row" style="gap:8px">
+        <button type="button" class="sp sp-m" id="grams-minus" style="width:38px;height:38px;font-size:20px">−</button>
+        <input id="food-grams" class="oi" type="number" inputmode="numeric" value="100" style="text-align:center;font-size:18px;font-weight:800">
+        <button type="button" class="sp sp-p" id="grams-plus" style="width:38px;height:38px;font-size:20px">+</button>
+      </div>
+    </div>
+    <div class="macro-grid" style="margin-top:4px;margin-bottom:14px">
+      <div class="macro-tile"><div class="macro-val" id="prev-kcal" style="color:var(--orange)">0</div><div class="macro-lbl">kcal</div></div>
+      <div class="macro-tile"><div class="macro-val" id="prev-protein" style="color:var(--accent2)">0g</div><div class="macro-lbl">Protein</div></div>
+      <div class="macro-tile"><div class="macro-val" id="prev-carbs" style="color:var(--green)">0g</div><div class="macro-lbl">Kohlenh.</div></div>
+    </div>
+    <button class="btn-p" id="btn-save-food-product">Hinzufügen</button>
+    <button class="btn-sec" id="btn-back-to-search" style="margin-top:8px">← Zurück zur Suche</button>
+  </div>
+
+  <!-- ── MANUELL ───────────────────────────────────────────────── -->
+  <div id="mv-manual" style="display:none">
+    <div class="ig"><label>Name</label><input id="mn-name" class="oi" type="text" placeholder="z.B. Hähnchen & Reis"></div>
+    <div class="ir">
+      <div class="ig"><label>Kalorien</label><input id="mn-cal" class="oi" type="number" inputmode="numeric" placeholder="450"></div>
+      <div class="ig"><label>Protein (g)</label><input id="mn-p" class="oi" type="number" inputmode="numeric" placeholder="40"></div>
+    </div>
+    <div class="ir">
+      <div class="ig"><label>Kohlenhydrate (g)</label><input id="mn-c" class="oi" type="number" inputmode="numeric" placeholder="55"></div>
+      <div class="ig"><label>Fett (g)</label><input id="mn-f" class="oi" type="number" inputmode="numeric" placeholder="10"></div>
+    </div>
+    <button class="btn-p" id="btn-save-meal">Speichern</button>
+  </div>
 </div>
 </div>
 
