@@ -1,12 +1,18 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // coachData.js
-// Statische Coach-Vorlagen (Trainingspläne, Übungslisten, Makro-Formeln, // Tipps) und Ziel-basierte Plananalyse.
+// Statische Coach-Vorlagen (Trainingspläne, Übungslisten, Makro-Formeln,
+// Tipps). Bewusst im Code gehalten statt in der DB, da es sich um
+// Anwendungslogik/Inhalte handelt, die mit jedem Deploy aktualisiert
+// werden und für ALLE Nutzer gleich sind (siehe Architekturentscheidung).
+// Nutzer-spezifische Daten (eigener Plan, Verlauf, Mahlzeiten) liegen
+// dagegen in Supabase – siehe api.js.
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const MUSCLE_COLORS = {
   Brust: '#E74C3C', Rücken: '#3498DB', Schultern: '#9B59B6',
   Bizeps: '#E67E22', Trizeps: '#F39C12', Beine: '#2ECC71',
-  Gesäß: '#1ABC9C', Bauch: '#E91E8C', Waden: '#00BCD4', Ganzkörper: '#7B6EF6', };
+  Gesäß: '#1ABC9C', Bauch: '#E91E8C', Waden: '#00BCD4', Ganzkörper: '#7B6EF6',
+};
 
 export const MUSCLE_GROUPS_IMPORTANT = ['Brust', 'Rücken', 'Schultern', 'Beine', 'Gesäß', 'Bauch'];
 
@@ -15,18 +21,21 @@ export const GOAL_OPTS = [
   { v: 'cut', i: '🔥', l: 'Fettabbau', s: 'Definiert & schlank werden' },
   { v: 'recomp', i: '⚖️', l: 'Rekomposition', s: 'Muskeln + Fett gleichzeitig' },
   { v: 'endurance', i: '🏃', l: 'Ausdauer', s: 'Kondition & Leistung steigern' },
-  { v: 'health', i: '❤️', l: 'Gesundheit', s: 'Fit & vital bleiben' }, ];
+  { v: 'health', i: '❤️', l: 'Gesundheit', s: 'Fit & vital bleiben' },
+];
 
 export const TYPE_OPTS = [
   { v: 'gym', i: '🏋️', l: 'Fitnessstudio', s: 'Geräte & freie Gewichte' },
   { v: 'freeletics', i: '🔄', l: 'Freeletics', s: 'HIIT & Bodyweight' },
   { v: 'home', i: '🏠', l: 'Home-Workout', s: 'Zuhause ohne Geräte' },
-  { v: 'outdoor', i: '🌳', l: 'Outdoor / Calisthenics', s: 'Park & Barren' }, ];
+  { v: 'outdoor', i: '🌳', l: 'Outdoor / Calisthenics', s: 'Park & Barren' },
+];
 
 export const LEVEL_OPTS = [
   { v: 'beginner', i: '🌱', l: 'Anfänger', s: '< 1 Jahr Training' },
   { v: 'intermediate', i: '⚡', l: 'Fortgeschritten', s: '1–3 Jahre' },
-  { v: 'advanced', i: '🏆', l: 'Erfahren', s: '> 3 Jahre' }, ];
+  { v: 'advanced', i: '🏆', l: 'Erfahren', s: '> 3 Jahre' },
+];
 
 export const COACH_PLANS = {
   gym: {
@@ -178,8 +187,10 @@ export function getCoachPlan(goals, trainingTypes) {
 export function coachPlanDays(goals, trainingTypes, days) {
   const plan = getCoachPlan(goals, trainingTypes);
   const dayKeys = Object.keys(plan).slice(0, Math.min(days || 4, Object.keys(plan).length));
-  return dayKeys.map((k) => ({ key: k, ...plan[k] })); }
+  return dayKeys.map((k) => ({ key: k, ...plan[k] }));
+}
 
+// ── Makro-Berechnung (Mifflin-St Jeor + Zielanpassung) ──────────────────
 export function calcMacros(profile, goals, days) {
   const g = Array.isArray(goals) ? goals[0] : goals;
   const { weight_kg: weight, height_cm: height, age, sex } = profile;
@@ -197,25 +208,30 @@ export function calcMacros(profile, goals, days) {
   return { kcal, protein, carbs, fat };
 }
 
+// ── Coach-Tipps ──────────────────────────────────────────────────────────
 export const COACH_TIPS = {
   muscle: ['Progressive Überladung ist das Fundament. Steigere jede Woche Gewicht ODER Volumen.', 'Mind-Muscle-Connection: Fühl die Muskeln, nicht nur die Bewegung.', 'Iss dein Protein auf 4-5 Mahlzeiten verteilt für maximale Muskelproteinsynthese.', 'Regeneration ist Training. Schlaf 8h und plane 48h Pause pro Muskelgruppe.'],
   cut: ['Kaloriendefizit von 400-500 kcal schont Muskelmasse optimal.', 'Mehr Protein in der Diät – 2.4-2.6g/kg schützt vor Muskelverlust.', 'Cardio morgens nüchtern erhöht die Fettverbrennung.'],
   recomp: ['Recomposition ist ein Marathon, kein Sprint. Plane 6-12 Monate.', 'Trainingstage: Erhaltungskalorien. Ruhetage: 200 kcal Defizit.'],
   endurance: ['Carbs sind dein Treibstoff. Lade vor langen Sessions mit komplexen KH.', 'Zone-2-Training (60-70% HF max) baut die aerobe Basis am effektivsten auf.'],
-  health: ['Konsistenz über Intensität. 3x pro Woche moderat ist besser als 1x extrem.', 'Kombiniere Kraft + Ausdauer für maximalen Gesundheitseffekt.'], };
+  health: ['Konsistenz über Intensität. 3x pro Woche moderat ist besser als 1x extrem.', 'Kombiniere Kraft + Ausdauer für maximalen Gesundheitseffekt.'],
+};
 
 export function getCoachTip(goals) {
   const g = Array.isArray(goals) ? goals[0] : goals || 'health';
   const tips = COACH_TIPS[g] || COACH_TIPS.health;
-  return tips[Math.floor(Math.random() * tips.length)]; }
+  return tips[Math.floor(Math.random() * tips.length)];
+}
 
 export function dayTip(days) {
   if (days <= 2) return '2 Einheiten sind perfekt für Einsteiger und Recomposition. Weniger ist mehr!';
   if (days === 3) return 'Push/Pull/Legs – der Klassiker. Ideal für Kraft und Muskelaufbau.';
   if (days === 4) return '4 Tage ist der Goldstandard: maximales Volumen bei optimaler Erholung.';
   if (days === 5) return '5 Tage erfordern clevere Planung. 48h Pause pro Muskelgruppe ist Pflicht.';
-  return '6-7 Tage? Nur für Erfahrene mit perfekter Ernährung und Schlaf.'; }
+  return '6-7 Tage? Nur für Erfahrene mit perfekter Ernährung und Schlaf.';
+}
 
+// ── Plananalyse (Warnungen zu fehlenden Muskelgruppen etc.) ─────────────
 export function analyzeMyPlan(exercises, goals) {
   const byDay = {};
   const byGoal = {};
@@ -232,6 +248,7 @@ export function analyzeMyPlan(exercises, goals) {
 
   const warnings = {};
 
+  // Nur für Kraft-Ziele fehlende Muskelgruppen prüfen
   const kraftGoals = (goals || ['muscle']).filter(g => g !== 'endurance');
   if (kraftGoals.length) {
     const missing = MUSCLE_GROUPS_IMPORTANT.filter((m) => !allMuscles[m]);
@@ -252,11 +269,20 @@ export function analyzeMyPlan(exercises, goals) {
     if (w.length) warnings[day] = w;
   });
 
-  return { byDay, byGoal, allMuscles, warnings }; }
+  return { byDay, byGoal, allMuscles, warnings };
+}
 
+// ── Ziel-spezifische Plananalyse ─────────────────────────────────────────
+// Prüft ob der Plan die Anforderungen jedes Ziels erfüllt.
+// Kardio-Ziele (cut, endurance) brauchen explizit Ausdauer-Einheiten.
 export function analyzePlanByGoal(exercises, goals) {
-  const GOAL_COLORS = { muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623', endurance: '#2ECC71', health: '#3498DB' };
-  const CARDIO_KEYWORDS = ['Lauf','Radfahren','Schwimmen','HIIT','Cardio','Intervall','Burpee','Jumping','Sprint','Rudern','Wandern','Tabata','Spinning','Joggen'];
+  const GOAL_COLORS = {
+    muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623',
+    endurance: '#2ECC71', health: '#3498DB'
+  };
+  const ENDURANCE_MUSCLES = ['Ganzkörper']; // Ausdauer-Übungen haben oft Ganzkörper als Gruppe
+  const CARDIO_KEYWORDS = ['Lauf','Radfahren','Schwimmen','HIIT','Cardio','Intervall','Burpee',
+    'Jumping','Sprint','Rudern','Wandern','Tabata','Spinning','Joggen'];
 
   return (goals || ['muscle']).map(goal => {
     const gInfo = GOAL_OPTS.find(o => o.v === goal) || { l: goal, i: '🎯', v: goal };
@@ -264,6 +290,12 @@ export function analyzePlanByGoal(exercises, goals) {
     const goalExes = exercises.filter(e => e.plan_goal === goal || (!e.plan_goal && goal === goals[0]));
     const totalDays = [...new Set(goalExes.map(e => e.plan_day))].length;
     const warnings = [];
+
+    // Kardio-Einheiten zählen (Übungen mit Ausdauer-Keywords)
+    const cardioCount = goalExes.filter(e =>
+      CARDIO_KEYWORDS.some(kw => e.exercise_name?.includes(kw)) ||
+      e.muscle_group === 'Ganzkörper'
+    ).length;
 
     const cardiodays = [...new Set(
       goalExes
@@ -273,9 +305,9 @@ export function analyzePlanByGoal(exercises, goals) {
 
     if (goal === 'cut') {
       if (cardiodays < 2)
-        warnings.push(`${gInfo.i} Fettabbau: Mindestens 2 Kardio-Einheiten/Woche empfohlen – aktuell ${cardiodays}.`);
+        warnings.push(`${gInfo.i} Fettabbau: Mindestens 2 Kardio-Einheiten/Woche empfohlen – aktuell ${cardiodays}. Kardio erhöht das Kaloriendefizit und schützt die Muskelmasse.`);
       if (totalDays < 3)
-        warnings.push(`${gInfo.i} Fettabbau: Mindestens 3 Trainingstage empfohlen.`);
+        warnings.push(`${gInfo.i} Fettabbau: Mindestens 3 Trainingstage empfohlen für optimalen Stoffwechsel.`);
     } else if (goal === 'endurance') {
       if (totalDays < 2)
         warnings.push(`${gInfo.i} Ausdauer: Mindestens 2 Ausdauereinheiten/Woche für messbare Fortschritte.`);
@@ -283,13 +315,13 @@ export function analyzePlanByGoal(exercises, goals) {
         warnings.push(`${gInfo.i} Ausdauer: Keine Kardio-Einheiten gefunden. Füge Lauf, Radfahren oder HIIT hinzu.`);
     } else if (goal === 'recomp') {
       if (cardiodays < 1 && totalDays > 0)
-        warnings.push(`${gInfo.i} Rekomposition: 1–2 Kardio-Einheiten/Woche unterstützen den Fettabbau.`);
+        warnings.push(`${gInfo.i} Rekomposition: 1–2 Kardio-Einheiten/Woche unterstützen den Fettabbau bei gleichzeitigem Muskelaufbau.`);
     } else if (goal === 'muscle') {
       if (totalDays < 2 && exercises.length > 0)
-        warnings.push(`${gInfo.i} Muskelaufbau: Mindestens 2–3 Kraft-Einheiten/Woche.`);
+        warnings.push(`${gInfo.i} Muskelaufbau: Mindestens 2–3 Kraft-Einheiten/Woche für progressive Überladung.`);
     } else if (goal === 'health') {
       if (totalDays < 2 && exercises.length > 0)
-        warnings.push(`${gInfo.i} Gesundheit: Kombiniere Kraft und Ausdauer für den besten Effekt.`);
+        warnings.push(`${gInfo.i} Gesundheit: Kombiniere Kraft und Ausdauer für den besten Gesundheitseffekt.`);
     }
 
     return { goal, label: gInfo.l, icon: gInfo.i, color: col, totalDays, cardiodays, warnings };
