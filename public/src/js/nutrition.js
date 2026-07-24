@@ -5,7 +5,7 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile } from './api.js';
+import { getMealsForToday, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
@@ -20,6 +20,7 @@ let html5QrCode = null;
 let searchDebounceTimer = null;
 let activeNTab = 'today';
 let editingSlots = [];
+let burnedEntry = null; // aktueller {id, burned_kcal, burned_source} Datensatz für heute
 
 export function initNutritionModule(user, profile) {
   currentUser = user;
@@ -39,19 +40,30 @@ function getSlots() {
 // ── HAUPTANZEIGE ─────────────────────────────────────────────────────────
 export async function renderNutrition() {
   mealsCache = await getMealsForToday(currentUser.id);
+  burnedEntry = await getBurnedCaloriesForToday(currentUser.id).catch(() => null);
+  const burnedKcal = burnedEntry?.burned_kcal || 0;
+
   const t = mealTotals(mealsCache);
   const m = {
-    kcal: currentProfile.macro_kcal || 2000,
+    kcal: (currentProfile.macro_kcal || 2000) + burnedKcal,
     protein: currentProfile.macro_protein || 150,
     carbs: currentProfile.macro_carbs || 200,
     fat: currentProfile.macro_fat || 60,
   };
 
-  document.getElementById('nutr-sub').textContent = `Ziel: ${m.kcal} kcal`;
+  // Eingabefelder mit aktuellem Stand befüllen
+  const burnedInput = document.getElementById('burned-kcal-input');
+  const burnedSourceSelect = document.getElementById('burned-source-select');
+  if (burnedInput) burnedInput.value = burnedKcal || '';
+  if (burnedSourceSelect && burnedEntry?.burned_source) burnedSourceSelect.value = burnedEntry.burned_source;
+
+  document.getElementById('nutr-sub').textContent = burnedKcal
+    ? `Ziel: ${currentProfile.macro_kcal || 2000} kcal + ${burnedKcal} verbrannt`
+    : `Ziel: ${m.kcal} kcal`;
   document.getElementById('nutr-card').innerHTML = `
     <div class="row" style="margin-bottom:14px">
       <div><div style="font-size:28px;font-weight:900;letter-spacing:-1px">${t.cal}</div>
-      <div style="font-size:12px;color:var(--sub)">von ${m.kcal} kcal</div></div>
+      <div style="font-size:12px;color:var(--sub)">von ${m.kcal} kcal${burnedKcal ? ` <span style="color:var(--green)">(+${burnedKcal} verbrannt)</span>` : ''}</div></div>
       ${ringHTML(76, 9, Math.min((t.cal / m.kcal) * 100, 100), 'var(--orange)', Math.round((t.cal / m.kcal) * 100) + '%')}
     </div>
     ${pbar('Protein ' + t.protein + 'g / ' + m.protein + 'g', t.protein, m.protein, 'var(--accent)')}
@@ -61,6 +73,20 @@ export async function renderNutrition() {
   await renderTrendInsights(m);
   renderMealsBySlot();
   if (activeNTab === 'coach') renderCoachNutritionPlan();
+}
+
+// ── VERBRANNTE KALORIEN (manuell erfasst) ────────────────────────────────
+export async function saveBurnedCalories() {
+  const kcal = Math.max(0, parseInt(document.getElementById('burned-kcal-input').value) || 0);
+  const source = document.getElementById('burned-source-select').value;
+  try {
+    assertOnline();
+    burnedEntry = await setBurnedCaloriesForToday(currentUser.id, kcal, source, burnedEntry?.id);
+    await renderNutrition();
+    showToast('✅ Verbrannte Kalorien gespeichert');
+  } catch (e) {
+    showToast('⚠️ Speichern fehlgeschlagen');
+  }
 }
 
 // ── TREND-INSIGHTS (datengetriebener Coach) ──────────────────────────────
@@ -187,10 +213,24 @@ function macroDonutHTML(protein, carbs, fat, size = 56) {
 }
 
 function macroLegendHTML(protein, carbs, fat) {
-  return `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px">
-    <span style="font-size:10px;color:var(--sub)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:3px"></span>${protein}g</span>
-    <span style="font-size:10px;color:var(--sub)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:3px"></span>${carbs}g</span>
-    <span style="font-size:10px;color:var(--sub)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--orange);margin-right:3px"></span>${fat}g</span>
+  const pCal = protein * 4, cCal = carbs * 4, fCal = fat * 9;
+  const total = pCal + cCal + fCal || 1;
+  const pPct = Math.round((pCal / total) * 100);
+  const cPct = Math.round((cCal / total) * 100);
+  const fPct = Math.round((fCal / total) * 100);
+
+  const row = (color, label, grams, pct) => `
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sub);margin-top:3px">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
+      <span style="width:64px;flex-shrink:0">${label}</span>
+      <span style="color:var(--text);font-weight:700">${grams}g</span>
+      <span style="color:var(--muted);margin-left:auto">${pct}%</span>
+    </div>`;
+
+  return `<div style="margin-top:6px">
+    ${row('var(--accent)', 'Protein', protein, pPct)}
+    ${row('var(--green)', 'Kohlenhydrate', carbs, cPct)}
+    ${row('var(--orange)', 'Fett', fat, fPct)}
   </div>`;
 }
 
