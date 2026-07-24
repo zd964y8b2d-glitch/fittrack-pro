@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // coachData.js
-// Statische Coach-Vorlagen (Trainingspläne, Übungslisten, Makro-Formeln, // Tipps). Bewusst im Code gehalten statt in der DB, da es sich um // Anwendungslogik/Inhalte handelt, die mit jedem Deploy aktualisiert // werden und für ALLE Nutzer gleich sind (siehe Architekturentscheidung).
-// Nutzer-spezifische Daten (eigener Plan, Verlauf, Mahlzeiten) liegen // dagegen in Supabase – siehe api.js.
+// Statische Coach-Vorlagen (Trainingspläne, Übungslisten, Makro-Formeln, // Tipps) und Ziel-basierte Plananalyse.
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const MUSCLE_COLORS = {
@@ -181,7 +180,7 @@ export function coachPlanDays(goals, trainingTypes, days) {
   const dayKeys = Object.keys(plan).slice(0, Math.min(days || 4, Object.keys(plan).length));
   return dayKeys.map((k) => ({ key: k, ...plan[k] })); }
 
-// ── Makro-Berechnung (Mifflin-St Jeor + Zielanpassung) ────────────────── export function calcMacros(profile, goals, days) {
+export function calcMacros(profile, goals, days) {
   const g = Array.isArray(goals) ? goals[0] : goals;
   const { weight_kg: weight, height_cm: height, age, sex } = profile;
   const bmr = sex === 'male'
@@ -198,7 +197,6 @@ export function coachPlanDays(goals, trainingTypes, days) {
   return { kcal, protein, carbs, fat };
 }
 
-// ── Coach-Tipps ──────────────────────────────────────────────────────────
 export const COACH_TIPS = {
   muscle: ['Progressive Überladung ist das Fundament. Steigere jede Woche Gewicht ODER Volumen.', 'Mind-Muscle-Connection: Fühl die Muskeln, nicht nur die Bewegung.', 'Iss dein Protein auf 4-5 Mahlzeiten verteilt für maximale Muskelproteinsynthese.', 'Regeneration ist Training. Schlaf 8h und plane 48h Pause pro Muskelgruppe.'],
   cut: ['Kaloriendefizit von 400-500 kcal schont Muskelmasse optimal.', 'Mehr Protein in der Diät – 2.4-2.6g/kg schützt vor Muskelverlust.', 'Cardio morgens nüchtern erhöht die Fettverbrennung.'],
@@ -218,7 +216,7 @@ export function dayTip(days) {
   if (days === 5) return '5 Tage erfordern clevere Planung. 48h Pause pro Muskelgruppe ist Pflicht.';
   return '6-7 Tage? Nur für Erfahrene mit perfekter Ernährung und Schlaf.'; }
 
-// ── Plananalyse (Warnungen zu fehlenden Muskelgruppen etc.) ───────────── export function analyzeMyPlan(exercises, goals) {
+export function analyzeMyPlan(exercises, goals) {
   const byDay = {};
   const byGoal = {};
   const allMuscles = {};
@@ -234,7 +232,6 @@ export function dayTip(days) {
 
   const warnings = {};
 
-  // Nur für Kraft-Ziele fehlende Muskelgruppen prüfen
   const kraftGoals = (goals || ['muscle']).filter(g => g !== 'endurance');
   if (kraftGoals.length) {
     const missing = MUSCLE_GROUPS_IMPORTANT.filter((m) => !allMuscles[m]);
@@ -257,17 +254,9 @@ export function dayTip(days) {
 
   return { byDay, byGoal, allMuscles, warnings }; }
 
-// ── Ziel-spezifische Plananalyse ─────────────────────────────────────────
-// Prüft ob der Plan die Anforderungen jedes Ziels erfüllt.
-// Kardio-Ziele (cut, endurance) brauchen explizit Ausdauer-Einheiten.
 export function analyzePlanByGoal(exercises, goals) {
-  const GOAL_COLORS = {
-    muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623',
-    endurance: '#2ECC71', health: '#3498DB'
-  };
-  const ENDURANCE_MUSCLES = ['Ganzkörper']; // Ausdauer-Übungen haben oft Ganzkörper als Gruppe
-  const CARDIO_KEYWORDS = ['Lauf','Radfahren','Schwimmen','HIIT','Cardio','Intervall','Burpee',
-    'Jumping','Sprint','Rudern','Wandern','Tabata','Spinning','Joggen'];
+  const GOAL_COLORS = { muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623', endurance: '#2ECC71', health: '#3498DB' };
+  const CARDIO_KEYWORDS = ['Lauf','Radfahren','Schwimmen','HIIT','Cardio','Intervall','Burpee','Jumping','Sprint','Rudern','Wandern','Tabata','Spinning','Joggen'];
 
   return (goals || ['muscle']).map(goal => {
     const gInfo = GOAL_OPTS.find(o => o.v === goal) || { l: goal, i: '🎯', v: goal };
@@ -275,12 +264,6 @@ export function analyzePlanByGoal(exercises, goals) {
     const goalExes = exercises.filter(e => e.plan_goal === goal || (!e.plan_goal && goal === goals[0]));
     const totalDays = [...new Set(goalExes.map(e => e.plan_day))].length;
     const warnings = [];
-
-    // Kardio-Einheiten zählen (Übungen mit Ausdauer-Keywords)
-    const cardioCount = goalExes.filter(e =>
-      CARDIO_KEYWORDS.some(kw => e.exercise_name?.includes(kw)) ||
-      e.muscle_group === 'Ganzkörper'
-    ).length;
 
     const cardiodays = [...new Set(
       goalExes
@@ -290,9 +273,9 @@ export function analyzePlanByGoal(exercises, goals) {
 
     if (goal === 'cut') {
       if (cardiodays < 2)
-        warnings.push(`${gInfo.i} Fettabbau: Mindestens 2 Kardio-Einheiten/Woche empfohlen – aktuell ${cardiodays}. Kardio erhöht das Kaloriendefizit und schützt die Muskelmasse.`);
+        warnings.push(`${gInfo.i} Fettabbau: Mindestens 2 Kardio-Einheiten/Woche empfohlen – aktuell ${cardiodays}.`);
       if (totalDays < 3)
-        warnings.push(`${gInfo.i} Fettabbau: Mindestens 3 Trainingstage empfohlen für optimalen Stoffwechsel.`);
+        warnings.push(`${gInfo.i} Fettabbau: Mindestens 3 Trainingstage empfohlen.`);
     } else if (goal === 'endurance') {
       if (totalDays < 2)
         warnings.push(`${gInfo.i} Ausdauer: Mindestens 2 Ausdauereinheiten/Woche für messbare Fortschritte.`);
@@ -300,13 +283,13 @@ export function analyzePlanByGoal(exercises, goals) {
         warnings.push(`${gInfo.i} Ausdauer: Keine Kardio-Einheiten gefunden. Füge Lauf, Radfahren oder HIIT hinzu.`);
     } else if (goal === 'recomp') {
       if (cardiodays < 1 && totalDays > 0)
-        warnings.push(`${gInfo.i} Rekomposition: 1–2 Kardio-Einheiten/Woche unterstützen den Fettabbau bei gleichzeitigem Muskelaufbau.`);
+        warnings.push(`${gInfo.i} Rekomposition: 1–2 Kardio-Einheiten/Woche unterstützen den Fettabbau.`);
     } else if (goal === 'muscle') {
       if (totalDays < 2 && exercises.length > 0)
-        warnings.push(`${gInfo.i} Muskelaufbau: Mindestens 2–3 Kraft-Einheiten/Woche für progressive Überladung.`);
+        warnings.push(`${gInfo.i} Muskelaufbau: Mindestens 2–3 Kraft-Einheiten/Woche.`);
     } else if (goal === 'health') {
       if (totalDays < 2 && exercises.length > 0)
-        warnings.push(`${gInfo.i} Gesundheit: Kombiniere Kraft und Ausdauer für den besten Gesundheitseffekt.`);
+        warnings.push(`${gInfo.i} Gesundheit: Kombiniere Kraft und Ausdauer für den besten Effekt.`);
     }
 
     return { goal, label: gInfo.l, icon: gInfo.i, color: col, totalDays, cardiodays, warnings };
