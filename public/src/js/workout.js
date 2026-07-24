@@ -19,6 +19,7 @@ let wActive = false, wTimer = null, wSecs = 0, wDone = 0;
 let sessData = {}; // index -> {weight, sets, reps} während einer aktiven Session
 let activeWTab = 'active';
 let removedEmptyDays = new Set(); // Tage, die der Nutzer bewusst entfernt hat
+let collapsedGoalSections = new Set(); // Ziel-Sektionen, die eingeklappt sind
 
 export function initWorkoutModule(user, profile) {
   currentUser = user;
@@ -293,24 +294,32 @@ async function renderMyPlan() {
       return assigned === goal || (!assigned && gi === 0);
     });
 
+    const isCollapsed = collapsedGoalSections.has(goal);
     html += `<div style="margin-bottom:6px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 14px;background:${gc}15;border-radius:13px;border:1px solid ${gc}33">
-        <span style="font-size:20px">${gInfo.i}</span>
-        <div>
-          <div style="font-size:14px;font-weight:800;color:${gc}">${gInfo.l}</div>
-          <div style="font-size:11px;color:var(--sub)">${goalTypeHint(goal)}</div>
+        <div data-toggle-goal-section="${goal}" style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">
+          <span style="font-size:20px">${gInfo.i}</span>
+          <div>
+            <div style="font-size:14px;font-weight:800;color:${gc}">${gInfo.l}</div>
+            <div style="font-size:11px;color:var(--sub)">${goalTypeHint(goal)}</div>
+          </div>
+          <span style="margin-left:6px;font-size:16px;color:${gc};transform:rotate(${isCollapsed ? -90 : 0}deg);transition:transform .2s;display:inline-block">▾</span>
         </div>
-        <button onclick="openAddExToMineGoal('${goal}')" style="margin-left:auto;background:${gc}22;border:1px solid ${gc}44;border-radius:9px;padding:6px 12px;color:${gc};font-size:12px;font-weight:700;cursor:pointer">+ Tag</button>
+        <button onclick="openAddExToMineGoal('${goal}')" style="background:${gc}22;border:1px solid ${gc}44;border-radius:9px;padding:6px 12px;color:${gc};font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">+ Tag</button>
       </div>`;
 
+    if (!isCollapsed) {
     goalDays.forEach((d) => {
       const exes = (byDay[d] || []).filter(e => !e.plan_goal || e.plan_goal === goal || (gi === 0 && !e.plan_goal));
       const dayLabel = exes[0]?.day_name || ('Tag ' + d);
       const goalOptionsHtml = GOAL_OPTS.map(g => `<option value="${g.v}" ${g.v === goal ? 'selected' : ''}>${g.i} ${g.l}</option>`).join('');
       html += `<div class="day-card" style="margin-left:8px;border-left:3px solid ${gc}44">
         <div class="day-hdr">
-          <div>
-            <div class="day-name">${dayLabel}</div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div class="day-name">${dayLabel}</div>
+              <button data-edit-dayname="${d}" data-dayname-current="${dayLabel.replace(/"/g,'&quot;')}" style="background:none;border:none;color:var(--sub);font-size:12px;cursor:pointer;padding:2px">✏️</button>
+            </div>
             <div class="day-focus">${exes.length > 0
               ? isEndurance ? exes.map(e => e.exercise_name).slice(0,2).join(', ') : [...new Set(exes.map((e) => e.muscle_group))].join(', ')
               : 'Noch leer'}</div>
@@ -347,6 +356,7 @@ async function renderMyPlan() {
         ${exes.length > 0 ? `<button data-start-day="${d}" data-day-label="${dayLabel.replace(/"/g,'&quot;')}" style="width:100%;margin-top:8px;background:${gc};border:none;border-radius:11px;padding:10px;color:#fff;font-size:13px;font-weight:800;cursor:pointer">⚡ ${dayLabel} starten</button>` : ''}
       </div>`;
     });
+    } // Ende if (!isCollapsed)
     html += '</div>';
   });
 
@@ -359,6 +369,12 @@ async function renderMyPlan() {
   document.querySelectorAll('#wv-mine [data-del-day]').forEach((btn) => btn.addEventListener('click', () => deleteEmptyDay(btn.dataset.delDay)));
   document.querySelectorAll('#wv-mine [data-day-goal-select]').forEach((sel) => {
     sel.addEventListener('change', () => reassignDayGoal(sel.dataset.dayGoalSelect, sel.value));
+  });
+  document.querySelectorAll('#wv-mine [data-toggle-goal-section]').forEach((el) => {
+    el.addEventListener('click', () => toggleGoalSection(el.dataset.toggleGoalSection));
+  });
+  document.querySelectorAll('#wv-mine [data-edit-dayname]').forEach((btn) => {
+    btn.addEventListener('click', () => editDayName(btn.dataset.editDayname, btn.dataset.daynameCurrent));
   });
   document.querySelectorAll('#wv-mine [data-start-day]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -398,6 +414,33 @@ async function reassignDayGoal(day, newGoal) {
     showToast('✅ Ziel-Zuordnung aktualisiert');
   } catch (e) {
     showToast('⚠️ Aktualisierung fehlgeschlagen');
+  }
+}
+
+function toggleGoalSection(goal) {
+  if (collapsedGoalSections.has(goal)) collapsedGoalSections.delete(goal);
+  else collapsedGoalSections.add(goal);
+  renderMyPlan();
+}
+
+// Benennt einen kompletten Plan-Tag um (wirkt sich auf ALLE Übungen dieses
+// Tages aus, da day_name pro Übung gespeichert wird, aber logisch dem
+// ganzen Tag gehört).
+async function editDayName(day, currentName) {
+  const newName = prompt('Name für diesen Tag:', currentName);
+  if (newName === null || !newName.trim()) return;
+  const dayExercises = myPlanCache.filter((e) => e.plan_day === day);
+  if (!dayExercises.length) return;
+  try {
+    assertOnline();
+    for (const ex of dayExercises) {
+      await updatePlanExercise(ex.id, { day_name: newName.trim() });
+    }
+    await refreshMyPlan();
+    renderMyPlan();
+    showToast('✅ Name geändert');
+  } catch (e) {
+    showToast('⚠️ Umbenennen fehlgeschlagen');
   }
 }
 
