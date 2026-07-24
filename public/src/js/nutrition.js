@@ -108,7 +108,10 @@ function renderMealsBySlot() {
           <div style="font-size:13px;font-weight:800;color:var(--orange);margin-top:2px">${slotTotal.cal} kcal</div>
           ${hasData ? macroLegendHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
         </div>
-        ${hasData ? macroDonutHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ${hasData ? macroDonutHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
+          <button data-add-to-slot="${slot.id}" style="width:32px;height:32px;border-radius:10px;border:none;background:var(--accentBg);color:var(--accent2);font-size:18px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>
+        </div>
       </div>
       ${meals.length ? meals.map((ml) => mealRowHTML(ml)).join('') : `<div style="font-size:12px;color:var(--muted);padding:4px 0 0">Noch nichts eingetragen</div>`}
     </div>`;
@@ -129,6 +132,20 @@ function renderMealsBySlot() {
   document.querySelectorAll('[data-del-meal]').forEach((btn) => {
     btn.addEventListener('click', () => confirmDeleteMeal(btn.dataset.delMeal));
   });
+  document.querySelectorAll('[data-add-to-slot]').forEach((btn) => {
+    btn.addEventListener('click', () => openMealModalForSlot(btn.dataset.addToSlot));
+  });
+}
+
+// Öffnet das Mahlzeit-Modal mit einem bereits vorausgewählten Slot - so
+// landet man z.B. beim Antippen von "+" bei "Frühstück" direkt in der Suche
+// und die Auswahl wird automatisch dem Frühstück zugeordnet.
+export function openMealModalForSlot(slotId) {
+  resetMealModal();
+  document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
+  populateSlotSelect('mn-slot-select', slotId);
+  populateSlotSelect('food-slot-select', slotId);
+  openMo('mo-meal');
 }
 
 // Zeichnet ein kompaktes Mehrfarben-Ring-Diagramm für die Makro-Verteilung
