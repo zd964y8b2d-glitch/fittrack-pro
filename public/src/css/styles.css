@@ -87,7 +87,7 @@ body{
 .sum-val{font-size:13px;font-weight:700;}
 
 /* APP */
-.app-screen{display:none;min-height:calc(100vh - 76px);overflow-y:auto;padding-bottom:34px;}
+.app-screen{display:none;min-height:calc(100vh - 76px);overflow-y:scroll;padding-bottom:calc(160px + var(--safe-bottom));-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;}
 .app-screen.active{display:block;}
 .app-header{padding:calc(50px + var(--safe-top)) 20px 14px;background:linear-gradient(180deg,var(--surface) 0%,var(--bg) 100%);}
 .app-header .sub{font-size:12px;color:var(--sub);margin-bottom:3px;}
