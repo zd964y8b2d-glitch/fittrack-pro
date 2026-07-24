@@ -97,7 +97,8 @@ export async function appendExerciseHistory(id, currentHistory, entry) {
   const lastIdx = updated.length - 1;
   if (lastIdx >= 0 && updated[lastIdx].date === today) updated[lastIdx] = entry;
   else updated.push(entry);
-  return updatePlanExercise(id, { history: updated, sets: entry.sets, reps: entry.reps, weight_kg: entry.weight }); }
+  return updatePlanExercise(id, { history: updated, sets: entry.sets, reps: entry.reps, weight_kg: entry.weight });
+}
 
 export async function getMealsForToday(userId) {
   const startOfDay = new Date();
@@ -117,10 +118,76 @@ export async function addMeal(userId, meal) {
       user_id: userId, meal_name: meal.name, meal_type: meal.type,
       kcal: meal.cal, protein_g: meal.protein, carbs_g: meal.carbs,
       fat_g: meal.fat, measured_at: new Date().toISOString(),
+      meal_slot_id: meal.slotId || null,
+      food_id: meal.foodId || null,
+      grams: meal.grams || null,
     })
     .select().single();
   if (error) throw error;
   return data;
+}
+
+export async function updateMeal(id, meal) {
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .update({
+      meal_name: meal.name, kcal: meal.cal, protein_g: meal.protein,
+      carbs_g: meal.carbs, fat_g: meal.fat, meal_slot_id: meal.slotId || null,
+      grams: meal.grams || null,
+    })
+    .eq('id', id)
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteMeal(id) {
+  const { error } = await supabase.from('body_measurements').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// Aggregiert Mahlzeiten der letzten N Tage für die Coach-Trendanalyse.
+export async function getMealHistoryAggregated(userId, days = 14) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  since.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .select('measured_at, kcal, protein_g, carbs_g, fat_g')
+    .eq('user_id', userId)
+    .not('meal_name', 'is', null)
+    .gte('measured_at', since.toISOString())
+    .order('measured_at', { ascending: true });
+  if (error) throw error;
+
+  // Nach Kalendertag gruppieren und pro Tag aufsummieren
+  const byDay = {};
+  (data || []).forEach((m) => {
+    const day = m.measured_at.slice(0, 10); // YYYY-MM-DD
+    if (!byDay[day]) byDay[day] = { date: day, totalKcal: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0 };
+    byDay[day].totalKcal += m.kcal || 0;
+    byDay[day].totalProtein += m.protein_g || 0;
+    byDay[day].totalCarbs += m.carbs_g || 0;
+    byDay[day].totalFat += m.fat_g || 0;
+  });
+  return Object.values(byDay);
+}
+
+// Gewichtsverlauf für die Coach-Trendanalyse (aus body_measurements mit weight_kg).
+export async function getWeightHistoryForTrend(userId, days = 21) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .select('measured_at, weight_kg')
+    .eq('user_id', userId)
+    .not('weight_kg', 'is', null)
+    .gte('measured_at', since.toISOString())
+    .order('measured_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((d) => ({ date: d.measured_at.slice(0, 10), weight: d.weight_kg }));
 }
 
 export async function getMeasurementHistory(userId, limit = 30) {
