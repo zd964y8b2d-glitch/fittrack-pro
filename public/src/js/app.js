@@ -12,7 +12,11 @@ import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, me
 import { initOfflineBanner } from './offline.js';
 import { startOnboarding, obNext, obBack } from './onboarding.js';
 import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal } from './workout.js';
-import { initNutritionModule, renderNutrition, saveMealFromModal, getMealsCache } from './nutrition.js';
+import {
+  initNutritionModule, renderNutrition, saveMealFromModal, getMealsCache,
+  openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
+  backToSearch, saveSelectedProduct, startScanner, stopScanner,
+} from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
 import { getWorkoutLogs } from './api.js';
 import { coachPlanDays } from './coachData.js';
@@ -299,10 +303,37 @@ function wireStaticButtons() {
   });
 
   // Meal Modal
-  document.getElementById('btn-open-meal-modal').addEventListener('click', () => openMo('mo-meal'));
-  document.getElementById('btn-close-meal-modal').addEventListener('click', () => closeMo('mo-meal'));
+  document.getElementById('btn-open-meal-modal').addEventListener('click', () => openMealModal());
+  document.getElementById('btn-close-meal-modal').addEventListener('click', async () => {
+    await stopScanner();
+    closeMo('mo-meal');
+  });
   document.getElementById('btn-save-meal').addEventListener('click', async () => {
     await saveMealFromModal();
+    await renderHome();
+  });
+
+  // Meal Modal - Tabs (Suche / Scannen / Manuell)
+  ['search', 'scan', 'manual'].forEach((t) => {
+    document.getElementById('mtab-' + t).addEventListener('click', () => switchMealTab(t));
+  });
+
+  // Meal Modal - Textsuche
+  document.getElementById('food-search-input').addEventListener('input', (e) => {
+    onFoodSearchInput(e.target.value);
+  });
+
+  // Meal Modal - Barcode-Scanner
+  document.getElementById('btn-start-scan').addEventListener('click', () => startScanner());
+  document.getElementById('btn-stop-scan').addEventListener('click', () => stopScanner());
+
+  // Meal Modal - Produkt-Detail (Grammzahl anpassen)
+  document.getElementById('grams-minus').addEventListener('click', () => stepGrams(-10));
+  document.getElementById('grams-plus').addEventListener('click', () => stepGrams(10));
+  document.getElementById('food-grams').addEventListener('input', () => onGramsInput());
+  document.getElementById('btn-back-to-search').addEventListener('click', () => backToSearch());
+  document.getElementById('btn-save-food-product').addEventListener('click', async () => {
+    await saveSelectedProduct();
     await renderHome();
   });
 
