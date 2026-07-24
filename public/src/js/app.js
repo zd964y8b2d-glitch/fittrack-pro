@@ -16,6 +16,7 @@ import {
   initNutritionModule, renderNutrition, saveMealFromModal, getMealsCache,
   openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
+  switchNutritionTab, openSlotManager, addNewSlot, saveSlots,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
 import { getWorkoutLogs } from './api.js';
@@ -336,6 +337,16 @@ function wireStaticButtons() {
     await saveSelectedProduct();
     await renderHome();
   });
+
+  // Ernährung - Tabs (Heute / Coach-Plan)
+  document.getElementById('ntab-today').addEventListener('click', () => switchNutritionTab('today'));
+  document.getElementById('ntab-coach').addEventListener('click', () => switchNutritionTab('coach'));
+
+  // Mahlzeiten-Slot Verwaltung
+  document.getElementById('btn-manage-slots').addEventListener('click', () => openSlotManager());
+  document.getElementById('btn-close-slots-modal').addEventListener('click', () => closeMo('mo-slots'));
+  document.getElementById('btn-add-slot').addEventListener('click', () => addNewSlot());
+  document.getElementById('btn-save-slots').addEventListener('click', () => saveSlots());
 
   // Exercise Modal
   document.getElementById('btn-close-ex-modal').addEventListener('click', () => closeMo('mo-ex'));
