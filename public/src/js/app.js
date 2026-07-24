@@ -11,15 +11,15 @@ import { getCoachTip } from './coachData.js';
 import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js';
 import { initOfflineBanner } from './offline.js';
 import { startOnboarding, obNext, obBack } from './onboarding.js';
-import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal } from './workout.js';
+import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal, resetProgress } from './workout.js';
 import {
   initNutritionModule, renderNutrition, saveMealFromModal, getMealsCache,
   openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
-  switchNutritionTab, openSlotManager, addNewSlot, saveSlots,
+  switchNutritionTab, openSlotManager, addNewSlot, saveSlots, saveBurnedCalories,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
-import { getWorkoutLogs } from './api.js';
+import { getWorkoutLogs, getTodayBurnedCalories, setTodayBurnedCalories, resetAllProgress } from './api.js';
 import { coachPlanDays } from './coachData.js';
 
 let currentUser = null;
@@ -168,15 +168,42 @@ async function renderHome() {
 
   document.getElementById('home-tip').innerHTML = `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-TIPP</div><div class="ct-txt">${getCoachTip(currentProfile.goals)}</div></div></div>`;
 
+  const burnedEntry = await getTodayBurnedCalories(currentUser.id).catch(() => null);
+  const burnedKcal = burnedEntry?.kcal || 0;
+  const netCal = Math.max(0, t.cal - burnedKcal);
+  const netPct = Math.min((netCal / m.kcal) * 100, 100);
+
   document.getElementById('home-macros').innerHTML = `
     <div class="row" style="margin-bottom:12px">
       <div><div style="font-size:14px;font-weight:800">Tagesziel</div>
-      <div style="font-size:12px;color:var(--sub);margin-top:2px">${m.kcal - t.cal > 0 ? 'Noch ' + (m.kcal - t.cal) + ' kcal' : 'Ziel erreicht 🎉'}</div></div>
-      ${ringHTML(62, 7, calPct, 'var(--orange)', Math.round(calPct) + '%')}
+      <div style="font-size:12px;color:var(--sub);margin-top:2px">${m.kcal - netCal > 0 ? 'Noch ' + (m.kcal - netCal) + ' kcal' : 'Ziel erreicht 🎉'}</div>
+      ${burnedKcal > 0 ? `<div style="font-size:11px;color:var(--green);margin-top:2px">− ${burnedKcal} kcal verbrannt = ${netCal} kcal netto</div>` : ''}</div>
+      ${ringHTML(62, 7, netPct, 'var(--orange)', Math.round(netPct) + '%')}
     </div>
     ${pbar('Protein ' + t.protein + 'g', t.protein, m.protein, 'var(--accent)')}
     ${pbar('Kohlenhydrate ' + t.carbs + 'g', t.carbs, m.carbs, 'var(--green)')}
     ${pbar('Fett ' + t.fat + 'g', t.fat, m.fat, 'var(--orange)')}`;
+
+  document.getElementById('home-burned').innerHTML = `
+    <div class="row" style="margin-bottom:8px">
+      <div style="font-size:14px;font-weight:800">🔥 Verbrannte Kalorien heute</div>
+    </div>
+    <div class="row" style="gap:8px">
+      <input id="burned-kcal-input" class="oi" type="number" inputmode="numeric" placeholder="0" value="${burnedKcal || ''}" style="flex:1">
+      <button id="btn-save-burned" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:11px;padding:11px 16px;color:var(--accent2);font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">Speichern</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">Trage Kalorien aus Apple Health, Google Fit oder deiner Fitness-Uhr manuell ein.</div>`;
+
+  document.getElementById('btn-save-burned').addEventListener('click', async () => {
+    const val = parseInt(document.getElementById('burned-kcal-input').value) || 0;
+    try {
+      await setTodayBurnedCalories(currentUser.id, val);
+      showToast('✅ Verbrannte Kalorien gespeichert');
+      await renderHome();
+    } catch (e) {
+      showToast('⚠️ Speichern fehlgeschlagen');
+    }
+  });
 
   const plan = coachPlanDays(currentProfile.goals, currentProfile.training_types, currentProfile.training_days);
   const today = plan[workoutLog.length % plan.length] || plan[0];
@@ -302,6 +329,12 @@ function wireStaticButtons() {
   ['active', 'coach', 'mine', 'history'].forEach((t) => {
     document.getElementById('wtab-' + t).addEventListener('click', () => wTab(t));
   });
+
+  // Fortschritt zurücksetzen
+  document.getElementById('btn-reset-progress').addEventListener('click', () => resetProgress());
+
+  // Verbrannte Kalorien speichern
+  document.getElementById('btn-save-burned').addEventListener('click', () => saveBurnedCalories());
 
   // Meal Modal
   document.getElementById('btn-open-meal-modal').addEventListener('click', () => openMealModal());
