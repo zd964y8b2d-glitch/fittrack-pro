@@ -1,8 +1,21 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // app.js
-// Einstiegspunkt der App. Orchestriert Auth-Flow, Navigation zwischen den // Screens und verdrahtet die Fach-Module (workout, nutrition, settings, // onboarding) mit dem jeweils aktuellen Nutzer/Profil.
+// Einstiegspunkt der App. Orchestriert Auth-Flow, Navigation zwischen den
+// Screens und verdrahtet die Fach-Module (workout, nutrition, settings,
+// onboarding) mit dem jeweils aktuellen Nutzer/Profil.
 // ═══════════════════════════════════════════════════════════════════════════
-import { supabase } from './supabaseClient.js'; import * as Auth from './auth.js'; import { getProfile } from './api.js'; import { getCoachTip } from './coachData.js'; import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js'; import { initOfflineBanner } from './offline.js'; import { startOnboarding, obNext, obBack } from './onboarding.js'; import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal } from './workout.js'; import { initNutritionModule, renderNutrition, saveMealFromModal, getMealsCache } from './nutrition.js'; import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js'; import { getWorkoutLogs } from './api.js'; import { coachPlanDays } from './coachData.js';
+import { supabase } from './supabaseClient.js';
+import * as Auth from './auth.js';
+import { getProfile } from './api.js';
+import { getCoachTip } from './coachData.js';
+import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js';
+import { initOfflineBanner } from './offline.js';
+import { startOnboarding, obNext, obBack } from './onboarding.js';
+import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal } from './workout.js';
+import { initNutritionModule, renderNutrition, saveMealFromModal, getMealsCache } from './nutrition.js';
+import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
+import { getWorkoutLogs } from './api.js';
+import { coachPlanDays } from './coachData.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -123,7 +136,8 @@ function showAppScreen(screen) {
   if (screen === 'progress') renderProgression();
   if (screen === 'settings') renderSettings();
   if (screen === 'workout') renderWorkout();
-  if (screen === 'nutrition') renderNutrition(); }
+  if (screen === 'nutrition') renderNutrition();
+}
 
 async function renderHome() {
   if (!currentProfile) return;
@@ -172,7 +186,8 @@ async function renderHome() {
         <span style="font-size:13px">${e.name}</span>
         <span style="font-size:11px;color:var(--sub)">${e.sets}×${e.reps} ${e.bodyweight ? 'KG' : e.weight + 'kg'}</span>
       </div>`).join('')}
-    ${(today?.exercises?.length || 0) > 3 ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:right">+${today.exercises.length - 3} weitere</div>` : ''}`; }
+    ${(today?.exercises?.length || 0) > 3 ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:right">+${today.exercises.length - 3} weitere</div>` : ''}`;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTH UI WIRING
@@ -307,11 +322,6 @@ function wireStaticButtons() {
     showPage('auth');
   });
 
-  // Workout starten (Home-Button)
-  document.getElementById('btn-start-workout-home').addEventListener('click', () => {
-    showAppScreen('workout');
-    window.startWorkout();
-  });
 }
 
 function translateAuthError(err) {
@@ -320,6 +330,7 @@ function translateAuthError(err) {
   if (msg.includes('User already registered')) return 'Diese E-Mail ist bereits registriert.';
   if (msg.includes('Password should be at least')) return 'Passwort zu kurz (min. 6 Zeichen).';
   if (msg.includes('Email not confirmed')) return 'Bitte bestätige zuerst deine E-Mail-Adresse.';
-  return msg || 'Ein Fehler ist aufgetreten.'; }
+  return msg || 'Ein Fehler ist aufgetreten.';
+}
 
 boot();
