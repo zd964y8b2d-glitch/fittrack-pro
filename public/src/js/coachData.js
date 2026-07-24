@@ -327,3 +327,104 @@ export function analyzePlanByGoal(exercises, goals) {
     return { goal, label: gInfo.l, icon: gInfo.i, color: col, totalDays, cardiodays, warnings };
   });
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH-ERNÄHRUNGSPLAN – Verteilung der Tagesmakros auf Mahlzeiten-Slots
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Standard-Slots, die jeder Nutzer initial bekommt. Prozentanteile basieren
+// auf gängigen Coach-Empfehlungen: größere Hauptmahlzeiten, kleinere Snacks,
+// mehr Protein am Morgen/nach dem Training für Muskelaufbau-Ziele.
+export const DEFAULT_MEAL_SLOTS = [
+  { id: 'breakfast', label: 'Frühstück', pct: 0.25 },
+  { id: 'snack1',    label: 'Snack 1',   pct: 0.10 },
+  { id: 'lunch',     label: 'Mittagessen', pct: 0.30 },
+  { id: 'snack2',    label: 'Snack 2',   pct: 0.10 },
+  { id: 'dinner',    label: 'Abendessen', pct: 0.25 },
+];
+
+// Erzeugt den Coach-Ernährungsplan: verteilt die Tagesmakros (aus calcMacros)
+// auf die übergebenen Slots, gewichtet nach deren Prozentanteil.
+export function buildCoachNutritionPlan(dailyMacros, slots) {
+  const useSlots = slots && slots.length ? slots : DEFAULT_MEAL_SLOTS;
+  return useSlots.map((slot) => ({
+    id: slot.id,
+    label: slot.label,
+    kcal: Math.round(dailyMacros.kcal * slot.pct),
+    protein: Math.round(dailyMacros.protein * slot.pct),
+    carbs: Math.round(dailyMacros.carbs * slot.pct),
+    fat: Math.round(dailyMacros.fat * slot.pct),
+  }));
+}
+
+// Fügt einen neuen, individuellen Slot hinzu und verteilt die Prozentanteile
+// der bestehenden Slots neu, sodass die Summe wieder 100% ergibt.
+export function addMealSlot(currentSlots, label) {
+  const slots = [...currentSlots];
+  const newId = 'custom_' + Date.now().toString(36);
+  const evenShare = 1 / (slots.length + 1);
+  const rescaled = slots.map((s) => ({ ...s, pct: round2(s.pct * (1 - evenShare)) }));
+  rescaled.push({ id: newId, label, pct: round2(evenShare) });
+  return rescaled;
+}
+
+export function removeMealSlot(currentSlots, slotId) {
+  const remaining = currentSlots.filter((s) => s.id !== slotId);
+  if (!remaining.length) return DEFAULT_MEAL_SLOTS;
+  const totalPct = remaining.reduce((sum, s) => sum + s.pct, 0);
+  return remaining.map((s) => ({ ...s, pct: round2(s.pct / totalPct) }));
+}
+
+function round2(v) {
+  return Math.round(v * 1000) / 1000;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH-ANALYSE – wertet die tatsächlichen Ernährungsdaten des Nutzers aus
+// und gibt datengetriebene Empfehlungen (regelbasiert, siehe Projektnotiz).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// mealHistory: Array von { date, totalKcal, totalProtein, totalCarbs, totalFat }
+// aggregiert über die letzten Tage. weightHistory: Array von { date, weight }.
+export function analyzeNutritionTrend(mealHistory, weightHistory, goalMacros, goal) {
+  const insights = [];
+  if (!mealHistory || mealHistory.length < 3) {
+    return insights; // Zu wenig Daten für eine belastbare Aussage
+  }
+
+  const recentDays = mealHistory.slice(-7);
+  const avgKcal = Math.round(recentDays.reduce((s, d) => s + d.totalKcal, 0) / recentDays.length);
+  const avgProtein = Math.round(recentDays.reduce((s, d) => s + d.totalProtein, 0) / recentDays.length);
+  const kcalDiff = avgKcal - goalMacros.kcal;
+  const proteinDiff = avgProtein - goalMacros.protein;
+
+  // Kalorien deutlich unter/über Ziel
+  if (Math.abs(kcalDiff) > 300) {
+    if (kcalDiff < 0) {
+      insights.push(`Du isst im Schnitt ${Math.abs(kcalDiff)} kcal unter deinem Ziel. ${goal === 'muscle' ? 'Das bremst den Muskelaufbau – iss mehr oder wir passen dein Ziel an.' : 'Das ist ein größeres Defizit als geplant – achte auf ausreichend Energie.'}`);
+    } else {
+      insights.push(`Du isst im Schnitt ${kcalDiff} kcal über deinem Ziel. ${goal === 'cut' ? 'Das verlangsamt deinen Fettabbau spürbar.' : 'Falls das gewollt ist (z.B. Aufbauphase), passt das – sonst Makros neu berechnen.'}`);
+    }
+  }
+
+  // Protein deutlich unter Ziel
+  if (proteinDiff < -20) {
+    insights.push(`Dein Protein liegt im Schnitt ${Math.abs(proteinDiff)}g unter dem Ziel. Für ${goal === 'muscle' || goal === 'recomp' ? 'Muskelaufbau' : 'den Erhalt deiner Muskulatur'} ist das zu wenig – plane proteinreichere Mahlzeiten ein.`);
+  }
+
+  // Gewichts-Stagnation trotz Zielabweichung (nur wenn genug Gewichtsdaten vorhanden)
+  if (weightHistory && weightHistory.length >= 4) {
+    const recent = weightHistory.slice(-4);
+    const weightChange = recent[recent.length - 1].weight - recent[0].weight;
+    if (Math.abs(weightChange) < 0.3) {
+      if (goal === 'cut' && kcalDiff > -100) {
+        insights.push('Dein Gewicht stagniert seit ca. 2 Wochen, obwohl Fettabbau dein Ziel ist. Erwäge, die Kalorien um 100–150 kcal zu senken.');
+      } else if (goal === 'muscle' && kcalDiff < 100) {
+        insights.push('Dein Gewicht stagniert seit ca. 2 Wochen. Für Muskelaufbau könnte ein leichter Kalorien-Überschuss helfen.');
+      }
+    }
+  }
+
+  return insights;
+}
