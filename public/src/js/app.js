@@ -230,6 +230,21 @@ function authErr(msg) {
   el.style.display = 'block';
 }
 
+// Robuster Helfer: registriert einen Event-Listener nur, wenn das Element
+// tatsächlich existiert. Verhindert, dass ein einzelnes fehlendes Element
+// (z.B. durch eine neue Modal-Struktur) die GESAMTE wireStaticButtons()
+// Funktion abbrechen lässt und dadurch ALLE nachfolgenden Buttons
+// (inkl. Login/Registrieren) tot bleiben - das war die Ursache für
+// "Button reagiert nicht" bei mehreren vorherigen Bugs.
+function on(id, event, handler) {
+  const el = document.getElementById(id);
+  if (!el) {
+    console.warn(`[wireStaticButtons] Element #${id} nicht gefunden - Listener übersprungen`);
+    return;
+  }
+  el.addEventListener(event, handler);
+}
+
 function wireStaticButtons() {
   // Auth Tabs
   document.querySelectorAll('.auth-tab').forEach((tab) => {
@@ -243,7 +258,7 @@ function wireStaticButtons() {
   });
 
   // Login
-  document.getElementById('btn-login').addEventListener('click', async () => {
+  on('btn-login', 'click', async () => {
     const email = document.getElementById('l-email').value.trim().toLowerCase();
     const pass = document.getElementById('l-pass').value;
     if (!email || !pass) { authErr('Bitte E-Mail und Passwort eingeben.'); return; }
@@ -256,7 +271,7 @@ function wireStaticButtons() {
   });
 
   // Registrierung
-  document.getElementById('btn-register').addEventListener('click', async () => {
+  on('btn-register', 'click', async () => {
     const name = document.getElementById('r-name').value.trim();
     const email = document.getElementById('r-email').value.trim().toLowerCase();
     const pass = document.getElementById('r-pass').value;
@@ -276,16 +291,16 @@ function wireStaticButtons() {
   });
 
   // Passwort vergessen – Link unter dem Login-Formular
-  document.getElementById('forgot-pw-link').addEventListener('click', (e) => {
+  on('forgot-pw-link', 'click', (e) => {
     e.preventDefault();
     document.getElementById('auth-login').style.display = 'none';
     document.getElementById('forgot-pw-box').style.display = '';
   });
-  document.getElementById('forgot-pw-cancel').addEventListener('click', () => {
+  on('forgot-pw-cancel', 'click', () => {
     document.getElementById('forgot-pw-box').style.display = 'none';
     document.getElementById('auth-login').style.display = '';
   });
-  document.getElementById('btn-forgot-pw-send').addEventListener('click', async () => {
+  on('btn-forgot-pw-send', 'click', async () => {
     const email = document.getElementById('fp-email').value.trim().toLowerCase();
     if (!email) { authErr('Bitte E-Mail eingeben.'); return; }
     try {
@@ -299,7 +314,7 @@ function wireStaticButtons() {
   });
 
   // Neues Passwort setzen (nach Klick auf Reset-Link aus E-Mail)
-  document.getElementById('btn-set-new-pw').addEventListener('click', async () => {
+  on('btn-set-new-pw', 'click', async () => {
     const pw1 = document.getElementById('np-pass1').value;
     const pw2 = document.getElementById('np-pass2').value;
     if (pw1.length < 6) { authErr('Passwort min. 6 Zeichen.'); return; }
@@ -317,80 +332,80 @@ function wireStaticButtons() {
   });
 
   // Onboarding
-  document.getElementById('ob-next').addEventListener('click', obNext);
-  document.getElementById('ob-back').addEventListener('click', obBack);
+  on('ob-next', 'click', obNext);
+  on('ob-back', 'click', obBack);
 
   // Navbar
   ['home', 'workout', 'progress', 'nutrition', 'settings'].forEach((s) => {
-    document.getElementById('nav-' + s).addEventListener('click', () => showAppScreen(s));
+    on('nav-' + s, 'click', () => showAppScreen(s));
   });
 
   // Workout Tabs
   ['active', 'coach', 'mine', 'history'].forEach((t) => {
-    document.getElementById('wtab-' + t).addEventListener('click', () => wTab(t));
+    on('wtab-' + t, 'click', () => wTab(t));
   });
 
   // Fortschritt zurücksetzen
-  document.getElementById('btn-reset-progress').addEventListener('click', () => resetProgress());
+  on('btn-reset-progress', 'click', () => resetProgress());
 
   // Verbrannte Kalorien speichern
-  document.getElementById('btn-save-burned').addEventListener('click', () => saveBurnedCalories());
+  on('btn-save-burned', 'click', () => saveBurnedCalories());
 
   // Meal Modal
-  document.getElementById('btn-open-meal-modal').addEventListener('click', () => openMealModal());
-  document.getElementById('btn-close-meal-modal').addEventListener('click', async () => {
+  on('btn-open-meal-modal', 'click', () => openMealModal());
+  on('btn-close-meal-modal', 'click', async () => {
     await stopScanner();
     closeMo('mo-meal');
   });
-  document.getElementById('btn-save-meal').addEventListener('click', async () => {
+  on('btn-save-meal', 'click', async () => {
     await saveMealFromModal();
     await renderHome();
   });
 
   // Meal Modal - Tabs (Suche / Scannen / Manuell)
   ['search', 'scan', 'manual'].forEach((t) => {
-    document.getElementById('mtab-' + t).addEventListener('click', () => switchMealTab(t));
+    on('mtab-' + t, 'click', () => switchMealTab(t));
   });
 
   // Meal Modal - Textsuche
-  document.getElementById('food-search-input').addEventListener('input', (e) => {
+  on('food-search-input', 'input', (e) => {
     onFoodSearchInput(e.target.value);
   });
 
   // Meal Modal - Barcode-Scanner
-  document.getElementById('btn-start-scan').addEventListener('click', () => startScanner());
-  document.getElementById('btn-stop-scan').addEventListener('click', () => stopScanner());
+  on('btn-start-scan', 'click', () => startScanner());
+  on('btn-stop-scan', 'click', () => stopScanner());
 
   // Meal Modal - Produkt-Detail (Grammzahl anpassen)
-  document.getElementById('grams-minus').addEventListener('click', () => stepGrams(-10));
-  document.getElementById('grams-plus').addEventListener('click', () => stepGrams(10));
-  document.getElementById('food-grams').addEventListener('input', () => onGramsInput());
-  document.getElementById('btn-back-to-search').addEventListener('click', () => backToSearch());
-  document.getElementById('btn-save-food-product').addEventListener('click', async () => {
+  on('grams-minus', 'click', () => stepGrams(-10));
+  on('grams-plus', 'click', () => stepGrams(10));
+  on('food-grams', 'input', () => onGramsInput());
+  on('btn-back-to-search', 'click', () => backToSearch());
+  on('btn-save-food-product', 'click', async () => {
     await saveSelectedProduct();
     await renderHome();
   });
 
   // Ernährung - Tabs (Heute / Coach-Plan)
-  document.getElementById('ntab-today').addEventListener('click', () => switchNutritionTab('today'));
-  document.getElementById('ntab-coach').addEventListener('click', () => switchNutritionTab('coach'));
+  on('ntab-today', 'click', () => switchNutritionTab('today'));
+  on('ntab-coach', 'click', () => switchNutritionTab('coach'));
 
   // Mahlzeiten-Slot Verwaltung
-  document.getElementById('btn-manage-slots').addEventListener('click', () => openSlotManager());
-  document.getElementById('btn-close-slots-modal').addEventListener('click', () => closeMo('mo-slots'));
-  document.getElementById('btn-add-slot').addEventListener('click', () => addNewSlot());
-  document.getElementById('btn-save-slots').addEventListener('click', () => saveSlots());
+  on('btn-manage-slots', 'click', () => openSlotManager());
+  on('btn-close-slots-modal', 'click', () => closeMo('mo-slots'));
+  on('btn-add-slot', 'click', () => addNewSlot());
+  on('btn-save-slots', 'click', () => saveSlots());
 
   // Exercise Modal
-  document.getElementById('btn-close-ex-modal').addEventListener('click', () => closeMo('mo-ex'));
-  document.getElementById('btn-save-ex').addEventListener('click', saveExerciseFromModal);
+  on('btn-close-ex-modal', 'click', () => closeMo('mo-ex'));
+  on('btn-save-ex', 'click', saveExerciseFromModal);
 
   // Goal/Settings Modal
-  document.getElementById('btn-close-goal-modal').addEventListener('click', () => closeMo('mo-goal'));
-  document.getElementById('btn-save-goal').addEventListener('click', saveGoalEdit);
+  on('btn-close-goal-modal', 'click', () => closeMo('mo-goal'));
+  on('btn-save-goal', 'click', saveGoalEdit);
 
   // Logout
-  document.getElementById('btn-logout').addEventListener('click', async () => {
+  on('btn-logout', 'click', async () => {
     await Auth.logout();
     currentUser = null;
     currentProfile = null;
