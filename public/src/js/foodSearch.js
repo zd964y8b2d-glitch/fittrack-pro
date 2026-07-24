@@ -8,8 +8,8 @@
 // tatsächlich gewählte Grammzahl frei umrechnen kann (wie bei FDDB).
 // ═══════════════════════════════════════════════════════════════════════════
 
-const OFF_SEARCH_URL = 'https://world.openfoodfacts.org/cgi/search.pl';
-const OFF_PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product';
+const OFF_SEARCH_URL = 'https://de.openfoodfacts.org/cgi/search.pl';
+const OFF_PRODUCT_URL = 'https://de.openfoodfacts.org/api/v2/product';
 
 // Wandelt einen rohen Open Food Facts Produkt-Datensatz in unser
 // einheitliches, schlankes Format um.
@@ -17,7 +17,7 @@ function normalizeProduct(p) {
   const n = p.nutriments || {};
   return {
     id: p.code || p._id || '',
-    name: p.product_name || p.product_name_de || p.generic_name || 'Unbekanntes Produkt',
+    name: p.product_name_de || p.product_name || p.generic_name_de || p.generic_name || 'Unbekanntes Produkt',
     brand: p.brands || '',
     imageUrl: p.image_front_small_url || p.image_small_url || null,
     // Nährwerte IMMER pro 100g/100ml normiert:
@@ -45,7 +45,8 @@ export async function searchFoodByName(query, limit = 20) {
     action: 'process',
     json: '1',
     page_size: String(limit),
-    fields: 'code,product_name,product_name_de,generic_name,brands,image_front_small_url,image_small_url,nutriments',
+    lc: 'de', // Bevorzugt deutsche Produktnamen/Übersetzungen in der Antwort
+    fields: 'code,product_name,product_name_de,generic_name,generic_name_de,brands,image_front_small_url,image_small_url,nutriments',
   });
 
   // Hinweis: Der User-Agent-Header wird bewusst NICHT gesetzt - Safari/WebKit
@@ -65,7 +66,7 @@ export async function searchFoodByName(query, limit = 20) {
   const data = await res.json();
 
   return (data.products || [])
-    .filter((p) => p.product_name || p.product_name_de) // Produkte ohne Namen ausblenden
+    .filter((p) => p.product_name_de || p.product_name || p.generic_name_de) // Produkte ohne Namen ausblenden
     .map(normalizeProduct)
     .filter((p) => p.per100.kcal > 0); // Produkte ohne Kalorienangabe sind für uns nutzlos
 }
