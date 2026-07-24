@@ -7,6 +7,7 @@
 import {
   getMyPlan, addPlanExercise, updatePlanExercise, deletePlanExercise,
   appendExerciseHistory, getWorkoutLogs, addWorkoutLog, deleteWorkoutLog,
+  resetAllProgressHistory,
 } from './api.js';
 import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js';
 import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js';
@@ -663,6 +664,19 @@ export async function renderProgression() {
       </div>
     </div>`;
   }).join('') || `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Führe dein erstes Workout durch um Daten zu sehen.</div>`;
+}
+
+export async function resetProgress() {
+  if (!confirm('Möchtest du wirklich deinen gesamten Trainingsfortschritt zurücksetzen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+  try {
+    assertOnline();
+    await resetAllProgressHistory(currentUser.id);
+    await refreshMyPlan();
+    await renderProgression();
+    showToast('✅ Fortschritt zurückgesetzt');
+  } catch (e) {
+    showToast('⚠️ Zurücksetzen fehlgeschlagen');
+  }
 }
 
 export function renderWorkout() {
