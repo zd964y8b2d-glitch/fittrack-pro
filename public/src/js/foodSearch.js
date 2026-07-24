@@ -48,15 +48,20 @@ export async function searchFoodByName(query, limit = 20) {
     fields: 'code,product_name,product_name_de,generic_name,brands,image_front_small_url,image_small_url,nutriments',
   });
 
-  // Open Food Facts bittet um einen beschreibenden User-Agent zur
-  // Identifikation der App (siehe API-Dokumentation).
-  const res = await fetch(`${OFF_SEARCH_URL}?${params.toString()}`, {
-    headers: { 'User-Agent': 'FitTrackPro - Coach PWA - fittrack-pro-9jy.pages.dev' },
-  });
+  // Hinweis: Der User-Agent-Header wird bewusst NICHT gesetzt - Safari/WebKit
+  // blockiert das per CORS-Preflight, da Open Food Facts diesen Header nicht
+  // explizit in Access-Control-Allow-Headers erlaubt. Stattdessen wird die
+  // App über den Query-Parameter identifiziert (unten), was CORS-sicher ist.
+  let res;
+  try {
+    res = await fetch(`${OFF_SEARCH_URL}?${params.toString()}`);
+  } catch (networkErr) {
+    throw new Error('Keine Verbindung zur Lebensmitteldatenbank. Prüfe deine Internetverbindung.');
+  }
   if (res.status === 429 || res.status === 503) {
     throw new Error('Zu viele Anfragen – bitte kurz warten.');
   }
-  if (!res.ok) throw new Error('Lebensmittelsuche fehlgeschlagen');
+  if (!res.ok) throw new Error('Lebensmittelsuche fehlgeschlagen (Status ' + res.status + ')');
   const data = await res.json();
 
   return (data.products || [])
@@ -68,9 +73,12 @@ export async function searchFoodByName(query, limit = 20) {
 // ── BARCODE-LOOKUP ───────────────────────────────────────────────────────
 // Holt ein einzelnes Produkt anhand seines Barcodes (EAN/UPC).
 export async function getFoodByBarcode(barcode) {
-  const res = await fetch(`${OFF_PRODUCT_URL}/${barcode}.json`, {
-    headers: { 'User-Agent': 'FitTrackPro - Coach PWA - fittrack-pro-9jy.pages.dev' },
-  });
+  let res;
+  try {
+    res = await fetch(`${OFF_PRODUCT_URL}/${barcode}.json`);
+  } catch (networkErr) {
+    throw new Error('Keine Verbindung zur Lebensmitteldatenbank. Prüfe deine Internetverbindung.');
+  }
   if (!res.ok) throw new Error('Produkt konnte nicht geladen werden');
   const data = await res.json();
 
