@@ -140,11 +140,25 @@
     <div class="app-header"><div class="sub" id="nutr-sub"></div><h1>Ernährung 🥗</h1></div>
     <div class="pad">
       <div class="card" id="nutr-card"></div>
-      <div class="row" style="margin-bottom:9px">
-        <div class="slbl" style="margin-bottom:0">Heute</div>
-        <button class="tag ta" style="cursor:pointer;border:none" id="btn-open-meal-modal">+ Mahlzeit</button>
+      <div id="nutr-insights"></div>
+
+      <div class="tab-bar">
+        <button class="tab-item active" id="ntab-today" data-ntab="today">Heute</button>
+        <button class="tab-item" id="ntab-coach" data-ntab="coach">Coach-Plan</button>
       </div>
-      <div id="meal-list"></div>
+
+      <div id="nv-today">
+        <div class="row" style="margin-bottom:9px">
+          <div class="slbl" style="margin-bottom:0">Mahlzeiten</div>
+          <div style="display:flex;gap:6px">
+            <button class="tag" style="cursor:pointer;border:none;background:var(--surface);color:var(--sub)" id="btn-manage-slots">⚙️</button>
+            <button class="tag ta" style="cursor:pointer;border:none" id="btn-open-meal-modal">+ Mahlzeit</button>
+          </div>
+        </div>
+        <div id="meal-list"></div>
+      </div>
+
+      <div id="nv-coach" style="display:none"></div>
     </div>
   </div>
 
@@ -225,6 +239,9 @@
       <div class="macro-tile"><div class="macro-val" id="prev-protein" style="color:var(--accent2)">0g</div><div class="macro-lbl">Protein</div></div>
       <div class="macro-tile"><div class="macro-val" id="prev-carbs" style="color:var(--green)">0g</div><div class="macro-lbl">Kohlenh.</div></div>
     </div>
+    <div class="ig"><label>Mahlzeit</label>
+      <select id="food-slot-select" class="oi"></select>
+    </div>
     <button class="btn-p" id="btn-save-food-product">Hinzufügen</button>
     <button class="btn-sec" id="btn-back-to-search" style="margin-top:8px">← Zurück zur Suche</button>
   </div>
@@ -240,6 +257,10 @@
       <div class="ig"><label>Kohlenhydrate (g)</label><input id="mn-c" class="oi" type="number" inputmode="numeric" placeholder="55"></div>
       <div class="ig"><label>Fett (g)</label><input id="mn-f" class="oi" type="number" inputmode="numeric" placeholder="10"></div>
     </div>
+    <div class="ig"><label>Mahlzeit</label>
+      <select id="mn-slot-select" class="oi"></select>
+    </div>
+    <input type="hidden" id="mn-edit-id">
     <button class="btn-p" id="btn-save-meal">Speichern</button>
   </div>
 </div>
@@ -309,6 +330,18 @@
   <div class="mt" id="mg-title">Anpassen</div>
   <div id="mg-body"></div>
   <button class="btn-p" id="btn-save-goal" style="margin-top:14px">Speichern</button>
+</div>
+</div>
+
+<!-- Mahlzeiten-Slot Verwaltung -->
+<div class="mo" id="mo-slots">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-slots-modal">✕</button>
+  <div class="mt">Mahlzeiten verwalten</div>
+  <p style="font-size:12px;color:var(--sub);margin-bottom:14px">Passe Bezeichnungen an oder füge weitere Mahlzeiten hinzu.</p>
+  <div id="slots-edit-list"></div>
+  <button class="add-inline-btn" id="btn-add-slot">+ Mahlzeit hinzufügen</button>
+  <button class="btn-p" id="btn-save-slots" style="margin-top:14px">Speichern</button>
 </div>
 </div>
 
