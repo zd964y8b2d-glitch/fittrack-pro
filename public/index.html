@@ -4,13 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
-<!-- ── PWA / iOS Safari Meta-Tags ────────────────────────────────────── --> <meta name="apple-mobile-web-app-capable" content="yes"> <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <meta name="apple-mobile-web-app-title" content="FitTrack"> <meta name="theme-color" content="#070709"> <meta name="mobile-web-app-capable" content="yes"> <link rel="manifest" href="/manifest.json"> <link rel="apple-touch-icon" href="/icons/icon-192.png">
+<!-- ── PWA / iOS Safari Meta-Tags ────────────────────────────────────── -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FitTrack">
+<meta name="theme-color" content="#070709">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 
 <title>FitTrack Pro</title>
-<link rel="stylesheet" href="/src/css/styles.css"> </head> <body>
+<link rel="stylesheet" href="/src/css/styles.css">
+</head>
+<body>
 
 <!-- ═══ AUTH ═══ -->
-<div id="page-auth" class="page active"> <div class="auth-wrap">
+<div id="page-auth" class="page active">
+<div class="auth-wrap">
   <div class="auth-logo">
     <div class="logo-icon">💪</div>
     <h1>FitTrack Pro</h1>
@@ -73,9 +83,13 @@
     <h1 id="ob-title" style="font-size:22px;font-weight:800;margin-top:3px;letter-spacing:-.3px"></h1>
   </div>
   <div class="coach-bubble" id="ob-bubble"><div class="coach-lbl">COACH</div><span id="ob-msg"></span></div>
-  <div class="ob-body" id="ob-body"></div> </div> <div class="ob-footer">
+  <div class="ob-body" id="ob-body"></div>
+</div>
+<div class="ob-footer">
   <button class="btn-sec" id="ob-back" style="display:none">← Zurück</button>
-  <button class="btn-p btn-nxt" id="ob-next">Weiter →</button> </div> </div>
+  <button class="btn-p btn-nxt" id="ob-next">Weiter →</button>
+</div>
+</div>
 
 <!-- ═══ MAIN APP ═══ -->
 <div id="page-app" class="page">
@@ -90,7 +104,7 @@
       <div id="home-tip"></div>
       <div class="card" id="home-macros"></div>
       <div class="card" id="home-next-workout"></div>
-      <button class="btn-p" id="btn-start-workout-home" style="margin-top:2px">⚡ Workout starten</button>
+
     </div>
   </div>
 
@@ -247,7 +261,8 @@
 
 <script>
 // ═══════════════════════════════════════════════════════
-// ÜBUNGSDATENBANK – inline (kein separater Import nötig) // ═══════════════════════════════════════════════════════
+// ÜBUNGSDATENBANK – inline (kein separater Import nötig)
+// ═══════════════════════════════════════════════════════
 const EXERCISE_DB_GYM = {
   Brust:[
     {name:'Bankdrücken (Langhantel)',sets:4,reps:8,weight:80,bodyweight:false},
@@ -525,7 +540,8 @@ window.setExMode = function(endurance) {
       MUSCLE_GROUPS.map(m => `<option value="${m}">${m}</option>`).join('');
   }
   document.getElementById('ex-name-select').innerHTML = '<option value="">-- Vorlage wählen --</option>';
-  document.getElementById('ex-name').value = ''; };
+  document.getElementById('ex-name').value = '';
+};
 
 window.updateExerciseDropdown = function() {
   const muscle = document.getElementById('ex-muscle').value;
@@ -597,7 +613,8 @@ window.removeSetRow = function(idx) {
 };
 
 window.updateSetRow = function(idx, field, val) {
-  window._setRows[idx][field] = field === 'reps' ? (parseInt(val)||0) : (parseFloat(val)||0); };
+  window._setRows[idx][field] = field === 'reps' ? (parseInt(val)||0) : (parseFloat(val)||0);
+};
 
 function renderSetRows() {
   const list = document.getElementById('ex-sets-list');
@@ -615,7 +632,8 @@ function renderSetRows() {
           oninput="updateSetRow(${i},'weight',this.value)" style="padding:9px 10px;font-size:14px">
       </div>` : ''}
       <button type="button" onclick="removeSetRow(${i})" style="background:var(--redBg);border:none;border-radius:8px;width:32px;height:32px;color:var(--red);font-size:16px;cursor:pointer;flex-shrink:0">✕</button>
-    </div>`).join('') || `<div style="text-align:center;color:var(--muted);font-size:12px;padding:12px">Noch keine Sätze – tippe "+ Satz"</div>`; }
+    </div>`).join('') || `<div style="text-align:center;color:var(--muted);font-size:12px;padding:12px">Noch keine Sätze – tippe "+ Satz"</div>`;
+}
 
 window.onExerciseSelect = function() {
   const select = document.getElementById('ex-name-select');
@@ -632,4 +650,6 @@ window.onExerciseSelect = function() {
   } catch(e) {}
 };
 </script>
-<script type="module" src="/src/js/app.js"></script> </body> </html>
+<script type="module" src="/src/js/app.js"></script>
+</body>
+</html>
