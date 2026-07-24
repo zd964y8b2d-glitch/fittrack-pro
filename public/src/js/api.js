@@ -54,6 +54,26 @@ export async function deleteWorkoutLog(id) {
   if (error) throw error;
 }
 
+// Setzt den kompletten Trainingsfortschritt zurück: löscht alle Workout-Logs
+// (Verlauf) und leert den Progressions-Verlauf jeder Übung im eigenen Plan.
+// Der Plan selbst (Übungen, Sätze, Ziele) bleibt erhalten - nur die
+// aufgezeichnete Historie wird entfernt.
+export async function resetAllProgress(userId) {
+  const { error: logError } = await supabase
+    .from('workouts').delete().eq('user_id', userId).eq('kind', 'log');
+  if (logError) throw logError;
+
+  const { data: planExercises, error: fetchError } = await supabase
+    .from('workouts').select('id').eq('user_id', userId).eq('kind', 'plan_exercise');
+  if (fetchError) throw fetchError;
+
+  for (const ex of planExercises || []) {
+    const { error: updateError } = await supabase
+      .from('workouts').update({ history: [] }).eq('id', ex.id);
+    if (updateError) throw updateError;
+  }
+}
+
 export async function getMyPlan(userId) {
   const { data, error } = await supabase
     .from('workouts').select('*').eq('user_id', userId).eq('kind', 'plan_exercise')
@@ -86,6 +106,17 @@ export async function updatePlanExercise(id, patch) {
   return data;
 }
 
+// Setzt den Fortschritt (Trainings-Historie) ALLER Plan-Übungen eines Nutzers
+// zurück, ohne die Übungen selbst oder den Plan zu löschen.
+export async function resetAllProgressHistory(userId) {
+  const { error } = await supabase
+    .from('workouts')
+    .update({ history: [] })
+    .eq('user_id', userId)
+    .eq('kind', 'plan_exercise');
+  if (error) throw error;
+}
+
 export async function deletePlanExercise(id) {
   const { error } = await supabase.from('workouts').delete().eq('id', id);
   if (error) throw error;
@@ -109,6 +140,39 @@ export async function getMealsForToday(userId) {
     .order('measured_at', { ascending: true });
   if (error) throw error;
   return data || [];
+}
+
+// Verbrannte Kalorien für heute (manuell erfasst, z.B. von Health-App/Wearable abgelesen).
+// Eigener kind='burned' Datensatz pro Tag, damit er unabhängig von Mahlzeiten verwaltet wird.
+export async function getBurnedCaloriesForToday(userId) {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const { data, error } = await supabase
+    .from('body_measurements').select('*').eq('user_id', userId)
+    .eq('kind', 'burned').gte('measured_at', startOfDay.toISOString())
+    .order('measured_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function setBurnedCaloriesForToday(userId, kcal, source, existingId) {
+  if (existingId) {
+    const { data, error } = await supabase
+      .from('body_measurements')
+      .update({ burned_kcal: kcal, burned_source: source })
+      .eq('id', existingId).select().single();
+    if (error) throw error;
+    return data;
+  }
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .insert({
+      user_id: userId, kind: 'burned', burned_kcal: kcal, burned_source: source,
+      measured_at: new Date().toISOString(),
+    })
+    .select().single();
+  if (error) throw error;
+  return data;
 }
 
 export async function addMeal(userId, meal) {
@@ -188,6 +252,27 @@ export async function getWeightHistoryForTrend(userId, days = 21) {
     .order('measured_at', { ascending: true });
   if (error) throw error;
   return (data || []).map((d) => ({ date: d.measured_at.slice(0, 10), weight: d.weight_kg }));
+}
+
+// ── VERBRANNTE KALORIEN (manuell erfasst, z.B. aus Apple Health/Garmin) ─
+export async function getTodayBurnedCalories(userId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('burned_calories').select('*')
+    .eq('user_id', userId).eq('date', today)
+    .maybeSingle();
+  if (error) throw error;
+  return data; // null, falls heute noch nichts erfasst wurde
+}
+
+export async function setTodayBurnedCalories(userId, kcal) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('burned_calories')
+    .upsert({ user_id: userId, date: today, kcal, source: 'manual' }, { onConflict: 'user_id,date' })
+    .select().single();
+  if (error) throw error;
+  return data;
 }
 
 export async function getMeasurementHistory(userId, limit = 30) {
