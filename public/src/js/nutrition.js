@@ -1,23 +1,25 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // nutrition.js
-// Ernährungstracking: Mahlzeiten des Tages, Makro-Fortschritt ggü. den
-// Coach-Zielwerten aus dem Profil. Lebensmittel können per Textsuche,
-// Barcode-Scan (Open Food Facts) oder manuell eingetragen werden, mit frei
-// anpassbarer Grammzahl (ähnlich FDDB).
+// Ernährungstracking: Mahlzeiten gruppiert in feste Slots (Frühstück, Snack 1,
+// Mittagessen, Snack 2, Abendessen, erweiterbar), mit Bearbeiten/Löschen,
+// Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
+// (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, addMeal } from './api.js';
+import { getMealsForToday, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
+import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend } from './coachData.js';
 
 let currentUser = null;
 let currentProfile = null;
 let mealsCache = [];
 
-// Aktuell in der Produkt-Detail-Ansicht ausgewähltes Produkt (pro 100g-Werte)
 let selectedProduct = null;
 let html5QrCode = null;
 let searchDebounceTimer = null;
+let activeNTab = 'today';
+let editingSlots = [];
 
 export function initNutritionModule(user, profile) {
   currentUser = user;
@@ -28,7 +30,13 @@ export function updateProfileRef(profile) {
   currentProfile = profile;
 }
 
-// ── HAUPTANZEIGE (Tagesübersicht + Mahlzeitenliste) ─────────────────────
+function getSlots() {
+  return (currentProfile.meal_slots && currentProfile.meal_slots.length)
+    ? currentProfile.meal_slots
+    : DEFAULT_MEAL_SLOTS;
+}
+
+// ── HAUPTANZEIGE ─────────────────────────────────────────────────────────
 export async function renderNutrition() {
   mealsCache = await getMealsForToday(currentUser.id);
   const t = mealTotals(mealsCache);
@@ -50,26 +58,222 @@ export async function renderNutrition() {
     ${pbar('Kohlenhydrate ' + t.carbs + 'g / ' + m.carbs + 'g', t.carbs, m.carbs, 'var(--green)')}
     ${pbar('Fett ' + t.fat + 'g / ' + m.fat + 'g', t.fat, m.fat, 'var(--orange)')}`;
 
-  document.getElementById('meal-list').innerHTML = mealsCache.length
-    ? mealsCache.map((ml) => `
-      <div class="card" style="margin-bottom:9px">
-        <div style="font-size:10px;color:var(--sub);font-weight:700;margin-bottom:3px">${ml.meal_type || 'Mahlzeit'} · ${new Date(ml.measured_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
-        <div class="row">
-          <div style="font-size:14px;font-weight:700">${ml.meal_name}</div>
-          <div style="font-size:17px;font-weight:900;color:var(--orange)">${ml.kcal}</div>
-        </div>
+  await renderTrendInsights(m);
+  renderMealsBySlot();
+  if (activeNTab === 'coach') renderCoachNutritionPlan();
+}
+
+// ── TREND-INSIGHTS (datengetriebener Coach) ──────────────────────────────
+async function renderTrendInsights(dailyMacros) {
+  const el = document.getElementById('nutr-insights');
+  try {
+    const [history, weightHistory] = await Promise.all([
+      getMealHistoryAggregated(currentUser.id, 14),
+      getWeightHistoryForTrend(currentUser.id, 21),
+    ]);
+    const goal = currentProfile.goals?.[0] || 'health';
+    const insights = analyzeNutritionTrend(history, weightHistory, dailyMacros, goal);
+
+    el.innerHTML = insights.length
+      ? insights.map((txt) => `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-ANALYSE</div><div class="ct-txt">${txt}</div></div></div>`).join('')
+      : '';
+  } catch (e) {
+    el.innerHTML = '';
+  }
+}
+
+// ── MAHLZEITEN NACH SLOTS GRUPPIERT ──────────────────────────────────────
+function renderMealsBySlot() {
+  const slots = getSlots();
+  const byslot = {};
+  slots.forEach((s) => (byslot[s.id] = []));
+  const unassigned = [];
+
+  mealsCache.forEach((meal) => {
+    if (meal.meal_slot_id && byslot[meal.meal_slot_id]) {
+      byslot[meal.meal_slot_id].push(meal);
+    } else {
+      unassigned.push(meal);
+    }
+  });
+
+  let html = slots.map((slot) => {
+    const meals = byslot[slot.id] || [];
+    const slotTotal = mealTotals(meals);
+    return `<div class="day-card" style="margin-bottom:10px">
+      <div class="day-hdr">
+        <div class="day-name">${slot.label}</div>
+        <span class="tag ta">${slotTotal.cal} kcal</span>
+      </div>
+      ${meals.length ? meals.map((ml) => mealRowHTML(ml)).join('') : `<div style="font-size:12px;color:var(--muted);padding:8px 0">Noch nichts eingetragen</div>`}
+    </div>`;
+  }).join('');
+
+  if (unassigned.length) {
+    html += `<div class="day-card" style="margin-bottom:10px;border-left:3px solid var(--muted)">
+      <div class="day-hdr"><div class="day-name">Ohne Zuordnung</div></div>
+      ${unassigned.map((ml) => mealRowHTML(ml)).join('')}
+    </div>`;
+  }
+
+  document.getElementById('meal-list').innerHTML = html || `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Noch nichts eingetragen.</div>`;
+
+  document.querySelectorAll('[data-edit-meal]').forEach((btn) => {
+    btn.addEventListener('click', () => openEditMeal(btn.dataset.editMeal));
+  });
+  document.querySelectorAll('[data-del-meal]').forEach((btn) => {
+    btn.addEventListener('click', () => confirmDeleteMeal(btn.dataset.delMeal));
+  });
+}
+
+function mealRowHTML(ml) {
+  return `<div class="card" style="margin-bottom:8px">
+    <div class="row" style="align-items:flex-start">
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--sub);font-weight:700;margin-bottom:3px">${new Date(ml.measured_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
+        <div style="font-size:14px;font-weight:700">${ml.meal_name}</div>
         <div style="display:flex;gap:10px;margin-top:4px">
           <span style="font-size:11px;color:var(--sub)">P: ${ml.protein_g}g</span>
           <span style="font-size:11px;color:var(--sub)">K: ${ml.carbs_g}g</span>
           <span style="font-size:11px;color:var(--sub)">F: ${ml.fat_g}g</span>
         </div>
-      </div>`).join('')
-    : `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Noch nichts eingetragen.</div>`;
+      </div>
+      <div style="text-align:right;flex-shrink:0;margin-left:8px">
+        <div style="font-size:16px;font-weight:900;color:var(--orange);margin-bottom:6px">${ml.kcal}</div>
+        <div style="display:flex;gap:5px">
+          <button class="edit-btn" data-edit-meal="${ml.id}">✏️</button>
+          <button class="del-btn" data-del-meal="${ml.id}">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 
-// ── MODAL: TAB-STEUERUNG ────────────────────────────────────────────────
+// ── MAHLZEIT BEARBEITEN ──────────────────────────────────────────────────
+function openEditMeal(mealId) {
+  const meal = mealsCache.find((m) => m.id === mealId);
+  if (!meal) return;
+  resetMealModal();
+  switchMealTab('manual');
+  document.getElementById('mn-name').value = meal.meal_name;
+  document.getElementById('mn-cal').value = meal.kcal;
+  document.getElementById('mn-p').value = meal.protein_g;
+  document.getElementById('mn-c').value = meal.carbs_g;
+  document.getElementById('mn-f').value = meal.fat_g;
+  document.getElementById('mn-edit-id').value = meal.id;
+  populateSlotSelect('mn-slot-select', meal.meal_slot_id);
+  document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit bearbeiten';
+  openMo('mo-meal');
+}
+
+async function confirmDeleteMeal(mealId) {
+  if (!confirm('Diese Mahlzeit wirklich löschen?')) return;
+  try {
+    assertOnline();
+    await deleteMeal(mealId);
+    await renderNutrition();
+    showToast('Mahlzeit gelöscht');
+  } catch (e) {
+    showToast('⚠️ Löschen fehlgeschlagen');
+  }
+}
+
+// ── COACH-ERNÄHRUNGSPLAN (Tab) ───────────────────────────────────────────
+export function switchNutritionTab(tab) {
+  activeNTab = tab;
+  document.getElementById('ntab-today').classList.toggle('active', tab === 'today');
+  document.getElementById('ntab-coach').classList.toggle('active', tab === 'coach');
+  document.getElementById('nv-today').style.display = tab === 'today' ? '' : 'none';
+  document.getElementById('nv-coach').style.display = tab === 'coach' ? '' : 'none';
+  if (tab === 'coach') renderCoachNutritionPlan();
+}
+
+function renderCoachNutritionPlan() {
+  const dailyMacros = {
+    kcal: currentProfile.macro_kcal || 2000,
+    protein: currentProfile.macro_protein || 150,
+    carbs: currentProfile.macro_carbs || 200,
+    fat: currentProfile.macro_fat || 60,
+  };
+  const plan = buildCoachNutritionPlan(dailyMacros, getSlots());
+
+  document.getElementById('nv-coach').innerHTML = `
+    <div class="coach-tip" style="margin-bottom:14px">
+      <div class="ct-icon">🏆</div>
+      <div><div class="ct-lbl">COACH-ERNÄHRUNGSPLAN</div>
+      <div class="ct-txt">Vorschlag, wie du deine Tagesmakros auf deine Mahlzeiten verteilen kannst. Passe die Gewichtung jederzeit über "Mahlzeiten verwalten" an.</div></div>
+    </div>
+    ${plan.map((slot) => `
+      <div class="day-card" style="margin-bottom:10px">
+        <div class="day-hdr">
+          <div class="day-name">${slot.label}</div>
+          <span class="tag to">${slot.kcal} kcal</span>
+        </div>
+        <div class="macro-grid">
+          <div class="macro-tile"><div class="macro-val" style="color:var(--accent2)">${slot.protein}g</div><div class="macro-lbl">Protein</div></div>
+          <div class="macro-tile"><div class="macro-val" style="color:var(--green)">${slot.carbs}g</div><div class="macro-lbl">Kohlenh.</div></div>
+          <div class="macro-tile"><div class="macro-val" style="color:var(--orange)">${slot.fat}g</div><div class="macro-lbl">Fett</div></div>
+        </div>
+      </div>`).join('')}`;
+}
+
+// ── SLOT-VERWALTUNG (Bearbeiten/Hinzufügen/Entfernen) ────────────────────
+export function openSlotManager() {
+  editingSlots = JSON.parse(JSON.stringify(getSlots()));
+  renderSlotEditList();
+  openMo('mo-slots');
+}
+
+function renderSlotEditList() {
+  const el = document.getElementById('slots-edit-list');
+  el.innerHTML = editingSlots.map((slot, i) => `
+    <div class="row" style="gap:8px;margin-bottom:8px">
+      <input class="oi" type="text" value="${slot.label}" data-slot-label="${i}" style="flex:1">
+      <button class="del-btn" data-slot-remove="${i}" ${editingSlots.length <= 1 ? 'disabled style="opacity:.3"' : ''}>✕</button>
+    </div>`).join('');
+
+  el.querySelectorAll('[data-slot-label]').forEach((input) => {
+    input.addEventListener('input', (e) => {
+      editingSlots[parseInt(input.dataset.slotLabel)].label = e.target.value;
+    });
+  });
+  el.querySelectorAll('[data-slot-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.slotRemove);
+      editingSlots = removeMealSlot(editingSlots, editingSlots[idx].id);
+      renderSlotEditList();
+    });
+  });
+}
+
+export function addNewSlot() {
+  editingSlots = addMealSlot(editingSlots, 'Neue Mahlzeit');
+  renderSlotEditList();
+}
+
+export async function saveSlots() {
+  try {
+    assertOnline();
+    const updated = await updateProfile(currentUser.id, { meal_slots: editingSlots });
+    currentProfile = updated;
+    closeMo('mo-slots');
+    await renderNutrition();
+    showToast('✅ Mahlzeiten aktualisiert');
+  } catch (e) {
+    showToast('⚠️ Speichern fehlgeschlagen');
+  }
+}
+
+function populateSlotSelect(selectId, currentSlotId) {
+  const select = document.getElementById(selectId);
+  const slots = getSlots();
+  select.innerHTML = slots.map((s) => `<option value="${s.id}" ${s.id === currentSlotId ? 'selected' : ''}>${s.label}</option>`).join('');
+}
+
+// ── MODAL: TAB-STEUERUNG (Suche / Scannen / Manuell) ────────────────────
 export function openMealModal() {
   resetMealModal();
+  document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
   openMo('mo-meal');
 }
 
@@ -78,6 +282,9 @@ function resetMealModal() {
   document.getElementById('food-search-input').value = '';
   document.getElementById('food-search-results').innerHTML = '';
   document.getElementById('food-search-status').style.display = 'none';
+  document.getElementById('mn-edit-id').value = '';
+  ['mn-name', 'mn-cal', 'mn-p', 'mn-c', 'mn-f'].forEach((id) => (document.getElementById(id).value = ''));
+  populateSlotSelect('mn-slot-select', null);
   selectedProduct = null;
   stopScanner();
 }
@@ -93,7 +300,7 @@ export function switchMealTab(tab) {
   if (tab !== 'scan') stopScanner();
 }
 
-// ── TEXTSUCHE (mit Debounce, damit nicht bei jedem Tastendruck gesucht wird) ─
+// ── TEXTSUCHE ─────────────────────────────────────────────────────────────
 export function onFoodSearchInput(query) {
   clearTimeout(searchDebounceTimer);
   const statusEl = document.getElementById('food-search-status');
@@ -115,7 +322,8 @@ export function onFoodSearchInput(query) {
       statusEl.style.display = results.length ? 'none' : 'block';
       if (!results.length) statusEl.textContent = 'Keine Treffer gefunden. Versuch einen anderen Suchbegriff oder trage es manuell ein.';
     } catch (err) {
-      statusEl.textContent = '⚠️ Suche fehlgeschlagen. Prüfe deine Internetverbindung.';
+      statusEl.style.display = 'block';
+      statusEl.textContent = '⚠️ ' + (err.message || 'Suche fehlgeschlagen.');
     }
   }, 800);
 }
@@ -137,13 +345,11 @@ function renderFoodResults(results) {
     </div>`).join('');
 
   el.querySelectorAll('[data-food-idx]').forEach((card) => {
-    card.addEventListener('click', () => {
-      selectProduct(results[parseInt(card.dataset.foodIdx)]);
-    });
+    card.addEventListener('click', () => selectProduct(results[parseInt(card.dataset.foodIdx)]));
   });
 }
 
-// ── PRODUKT AUSWÄHLEN → DETAIL-ANSICHT MIT GRAMMZAHL ────────────────────
+// ── PRODUKT AUSWÄHLEN → DETAIL-ANSICHT ───────────────────────────────────
 function selectProduct(product) {
   selectedProduct = product;
   document.getElementById('mv-search').style.display = 'none';
@@ -154,9 +360,10 @@ function selectProduct(product) {
   document.getElementById('product-detail-card').innerHTML = `
     <div style="font-size:15px;font-weight:800">${product.name}</div>
     ${product.brand ? `<div style="font-size:12px;color:var(--sub);margin-top:2px">${product.brand}</div>` : ''}
-    <div style="font-size:11px;color:var(--muted);margin-top:6px">Nährwerte pro 100g: ${product.per100.kcal} kcal · P ${product.per100.protein}g · K ${product.per100.carbs}g · F ${product.per100.fat}g</div>`;
+    <div style="font-size:11px;color:var(--muted);margin-top:6px">Pro 100g: ${product.per100.kcal} kcal · P ${product.per100.protein}g · K ${product.per100.carbs}g · F ${product.per100.fat}g</div>`;
 
   document.getElementById('food-grams').value = '100';
+  populateSlotSelect('food-slot-select', null);
   updateNutrientPreview();
 }
 
@@ -186,21 +393,18 @@ export function backToSearch() {
   document.getElementById('mv-search').style.display = '';
 }
 
-// ── PRODUKT MIT GEWÄHLTER GRAMMZAHL SPEICHERN ───────────────────────────
 export async function saveSelectedProduct() {
   if (!selectedProduct) return;
   const grams = Math.max(1, parseInt(document.getElementById('food-grams').value) || 100);
   const scaled = scaleNutrients(selectedProduct.per100, grams);
+  const slotId = document.getElementById('food-slot-select').value;
 
   try {
     assertOnline();
     await addMeal(currentUser.id, {
       name: `${selectedProduct.name} (${grams}g)`,
-      cal: scaled.kcal,
-      protein: scaled.protein,
-      carbs: scaled.carbs,
-      fat: scaled.fat,
-      type: 'Mahlzeit',
+      cal: scaled.kcal, protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat,
+      type: 'Mahlzeit', slotId, foodId: selectedProduct.id, grams,
     });
     closeMo('mo-meal');
     await renderNutrition();
@@ -210,7 +414,7 @@ export async function saveSelectedProduct() {
   }
 }
 
-// ── BARCODE-SCANNER (html5-qrcode) ──────────────────────────────────────
+// ── BARCODE-SCANNER ───────────────────────────────────────────────────────
 export async function startScanner() {
   const statusEl = document.getElementById('scan-status');
   document.getElementById('scanner-placeholder').style.display = 'none';
@@ -232,7 +436,7 @@ export async function startScanner() {
         statusEl.textContent = '✅ Barcode erkannt, suche Produkt...';
         await onBarcodeDetected(decodedText);
       },
-      () => {} // Fehler pro Frame (kein Code gefunden) – ignorieren, ist normal
+      () => {}
     );
     statusEl.textContent = 'Richte die Kamera auf den Barcode...';
   } catch (err) {
@@ -274,22 +478,29 @@ function resetScanButtons() {
   document.getElementById('btn-stop-scan').style.display = 'none';
 }
 
-// ── MANUELLE EINGABE (bestehendes Verhalten) ────────────────────────────
+// ── MANUELLE EINGABE (mit Bearbeiten-Unterstützung) ──────────────────────
 export async function saveMealFromModal() {
   const name = document.getElementById('mn-name').value.trim();
   const cal = parseInt(document.getElementById('mn-cal').value) || 0;
   if (!name || !cal) { showToast('⚠️ Name + Kalorien erforderlich'); return; }
 
+  const editId = document.getElementById('mn-edit-id').value;
+  const slotId = document.getElementById('mn-slot-select').value;
+  const payload = {
+    name, cal,
+    protein: parseInt(document.getElementById('mn-p').value) || 0,
+    carbs: parseInt(document.getElementById('mn-c').value) || 0,
+    fat: parseInt(document.getElementById('mn-f').value) || 0,
+    slotId,
+  };
+
   try {
     assertOnline();
-    await addMeal(currentUser.id, {
-      name, cal,
-      protein: parseInt(document.getElementById('mn-p').value) || 0,
-      carbs: parseInt(document.getElementById('mn-c').value) || 0,
-      fat: parseInt(document.getElementById('mn-f').value) || 0,
-      type: 'Mahlzeit',
-    });
-    ['mn-name', 'mn-cal', 'mn-p', 'mn-c', 'mn-f'].forEach((id) => (document.getElementById(id).value = ''));
+    if (editId) {
+      await updateMeal(editId, payload);
+    } else {
+      await addMeal(currentUser.id, { ...payload, type: 'Mahlzeit' });
+    }
     closeMo('mo-meal');
     await renderNutrition();
     showToast('✅ Mahlzeit gespeichert');
