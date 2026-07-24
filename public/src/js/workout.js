@@ -18,6 +18,7 @@ let myPlanCache = [];
 let wActive = false, wTimer = null, wSecs = 0, wDone = 0;
 let sessData = {}; // index -> {weight, sets, reps} während einer aktiven Session
 let activeWTab = 'active';
+let removedEmptyDays = new Set(); // Tage, die der Nutzer bewusst entfernt hat
 
 export function initWorkoutModule(user, profile) {
   currentUser = user;
@@ -275,7 +276,7 @@ async function renderMyPlan() {
 
   const allDays = ['A','B','C','D','E','F','G'];
   const usedDays = [...new Set(myPlanCache.map(e => e.plan_day))].sort();
-  const displayDays = [...new Set([...usedDays, ...allDays.slice(0, Math.max(4, usedDays.length + 1))])];
+  const displayDays = [...new Set([...usedDays, ...allDays.slice(0, Math.max(4, usedDays.length + 1))])].filter(d => usedDays.includes(d) || !removedEmptyDays.has(d));
 
   const dayGoalMap = {};
   myPlanCache.forEach(ex => { if (ex.plan_goal) dayGoalMap[ex.plan_day] = ex.plan_goal; });
@@ -305,6 +306,7 @@ async function renderMyPlan() {
     goalDays.forEach((d) => {
       const exes = (byDay[d] || []).filter(e => !e.plan_goal || e.plan_goal === goal || (gi === 0 && !e.plan_goal));
       const dayLabel = exes[0]?.day_name || ('Tag ' + d);
+      const goalOptionsHtml = GOAL_OPTS.map(g => `<option value="${g.v}" ${g.v === goal ? 'selected' : ''}>${g.i} ${g.l}</option>`).join('');
       html += `<div class="day-card" style="margin-left:8px;border-left:3px solid ${gc}44">
         <div class="day-hdr">
           <div>
@@ -313,7 +315,13 @@ async function renderMyPlan() {
               ? isEndurance ? exes.map(e => e.exercise_name).slice(0,2).join(', ') : [...new Set(exes.map((e) => e.muscle_group))].join(', ')
               : 'Noch leer'}</div>
           </div>
-          <span class="tag" style="background:${gc}15;color:${gc}">${exes.length} Einheiten</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span class="tag" style="background:${gc}15;color:${gc}">${exes.length} Einheiten</span>
+            ${exes.length === 0 ? `<button data-del-day="${d}" style="background:var(--redBg);border:none;border-radius:8px;width:26px;height:26px;color:var(--red);font-size:13px;cursor:pointer">✕</button>` : ''}
+          </div>
+        </div>
+        <div class="ig" style="margin-top:8px;margin-bottom:8px">
+          <select class="oi" data-day-goal-select="${d}" style="font-size:12px;padding:8px 10px">${goalOptionsHtml}</select>
         </div>
         ${exes.map((ex) => {
           const col = MUSCLE_COLORS[ex.muscle_group] || gc;
@@ -348,6 +356,10 @@ async function renderMyPlan() {
   });
   document.querySelectorAll('#wv-mine [data-edit]').forEach((btn) => btn.addEventListener('click', () => editMyEx(btn.dataset.edit)));
   document.querySelectorAll('#wv-mine [data-del]').forEach((btn) => btn.addEventListener('click', () => delMyEx(btn.dataset.del)));
+  document.querySelectorAll('#wv-mine [data-del-day]').forEach((btn) => btn.addEventListener('click', () => deleteEmptyDay(btn.dataset.delDay)));
+  document.querySelectorAll('#wv-mine [data-day-goal-select]').forEach((sel) => {
+    sel.addEventListener('change', () => reassignDayGoal(sel.dataset.dayGoalSelect, sel.value));
+  });
   document.querySelectorAll('#wv-mine [data-start-day]').forEach((btn) => {
     btn.addEventListener('click', () => {
       // Filtert myPlanCache serverseitig NICHT - Start-Button startet den kompletten aktuellen Plan
@@ -355,6 +367,38 @@ async function renderMyPlan() {
       window.startWorkout(btn.dataset.dayLabel);
     });
   });
+}
+
+// Löscht einen leeren Tag - da ohne Übungen kein DB-Eintrag existiert,
+// muss hier nur der lokale Tag aus der Anzeige entfernt werden. Da Tage
+// rein aus den vorhandenen Übungen abgeleitet werden (kein eigener
+// Datensatz pro Tag), reicht ein Re-Render nach kurzer Bestätigung.
+async function deleteEmptyDay(day) {
+  if (!confirm(`Tag ${day} wirklich entfernen?`)) return;
+  // Leere Tage haben keine Übungen und damit keine DB-Einträge zum Löschen.
+  // Wir merken uns den entfernten Tag, damit er nicht erneut als "leerer
+  // Vorschlag" auftaucht, bis der Nutzer bewusst einen neuen Tag anlegt.
+  removedEmptyDays.add(day);
+  renderMyPlan();
+  showToast('Tag entfernt');
+}
+
+// Ändert das Ziel, dem ein kompletter Tag zugeordnet ist - wirkt sich auf
+// ALLE Übungen dieses Tages aus (plan_goal wird für jede Übung aktualisiert).
+async function reassignDayGoal(day, newGoal) {
+  const dayExercises = myPlanCache.filter((e) => e.plan_day === day);
+  if (!dayExercises.length) return;
+  try {
+    assertOnline();
+    for (const ex of dayExercises) {
+      await updatePlanExercise(ex.id, { plan_goal: newGoal });
+    }
+    await refreshMyPlan();
+    renderMyPlan();
+    showToast('✅ Ziel-Zuordnung aktualisiert');
+  } catch (e) {
+    showToast('⚠️ Aktualisierung fehlgeschlagen');
+  }
 }
 
 function goalTypeHint(goal) {
