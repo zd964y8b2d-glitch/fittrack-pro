@@ -104,6 +104,7 @@
       <div class="sg" id="home-stats"></div>
       <div id="home-tip"></div>
       <div class="card" id="home-macros"></div>
+      <div class="card" id="home-burned"></div>
       <div class="card" id="home-next-workout"></div>
 
     </div>
@@ -132,7 +133,13 @@
   <!-- PROGRESSION -->
   <div id="app-progress" class="app-screen">
     <div class="app-header"><div class="sub">Deine Entwicklung</div><h1>Progression 📈</h1></div>
-    <div class="pad" id="prog-list"></div>
+    <div class="pad">
+      <div class="row" style="margin-bottom:12px">
+        <div></div>
+        <button id="btn-reset-progress" style="background:var(--redBg);border:1px solid rgba(231,69,58,.3);border-radius:10px;padding:7px 12px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer">↺ Zurücksetzen</button>
+      </div>
+      <div id="prog-list"></div>
+    </div>
   </div>
 
   <!-- NUTRITION -->
@@ -140,6 +147,28 @@
     <div class="app-header"><div class="sub" id="nutr-sub"></div><h1>Ernährung 🥗</h1></div>
     <div class="pad">
       <div class="card" id="nutr-card"></div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="row" style="margin-bottom:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700">🔥 Verbrannte Kalorien</div>
+            <div style="font-size:11px;color:var(--sub);margin-top:1px">Aus Apple Health, Garmin, Whoop o.ä. ablesen und eintragen</div>
+          </div>
+        </div>
+        <div class="row" style="gap:8px">
+          <input id="burned-kcal-input" class="oi" type="number" inputmode="numeric" placeholder="0" style="flex:1;text-align:center;font-weight:800">
+          <select id="burned-source-select" class="oi" style="flex:1">
+            <option value="Apple Health">Apple Health</option>
+            <option value="Google Fit">Google Fit</option>
+            <option value="Garmin">Garmin</option>
+            <option value="Whoop">Whoop</option>
+            <option value="Fitbit">Fitbit</option>
+            <option value="Manuell">Manuell geschätzt</option>
+          </select>
+          <button id="btn-save-burned" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:10px;padding:0 14px;color:var(--accent2);font-weight:700;cursor:pointer;flex-shrink:0">✓</button>
+        </div>
+      </div>
+
       <div id="nutr-insights"></div>
 
       <div class="tab-bar">
@@ -169,6 +198,11 @@
       <div class="slbl">Körperprofil</div><div class="card" id="set-profile"></div>
       <div class="slbl" style="margin-top:4px">Ziele & Makros</div><div class="card" id="set-goals"></div>
       <div class="slbl" style="margin-top:4px">Training</div><div class="card" id="set-train"></div>
+      <div class="slbl" style="margin-top:4px">Datenverwaltung</div>
+      <div class="card"><div class="si" style="border:none">
+        <div class="si-l"><div class="si-name" style="color:var(--orange)">Fortschritt zurücksetzen</div><div class="si-val">Löscht Workout-Verlauf & Progressionsdaten</div></div>
+        <div class="si-r" id="btn-reset-progress" style="color:var(--orange)">↻</div>
+      </div></div>
       <div class="slbl" style="margin-top:4px">Account</div>
       <div class="card"><div class="si" style="border:none">
         <div class="si-l"><div class="si-name" style="color:var(--red)">Abmelden</div><div class="si-val">Account wechseln</div></div>
