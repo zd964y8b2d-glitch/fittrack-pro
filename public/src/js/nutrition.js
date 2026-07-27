@@ -21,6 +21,7 @@ let searchDebounceTimer = null;
 let searchRequestId = 0; // Schutz gegen veraltete Suchantworten, die neuere überschreiben
 let activeNTab = 'today';
 let editingSlots = [];
+let preselectedSlotId = null; // Slot, der beim Öffnen des Modals per '+' vorausgewählt wurde
 let burnedEntry = null; // aktueller {id, burned_kcal, burned_source} Datensatz für heute
 
 export function initNutritionModule(user, profile) {
@@ -168,10 +169,9 @@ function renderMealsBySlot() {
 // landet man z.B. beim Antippen von "+" bei "Frühstück" direkt in der Suche
 // und die Auswahl wird automatisch dem Frühstück zugeordnet.
 export function openMealModalForSlot(slotId) {
+  preselectedSlotId = slotId;
   resetMealModal();
   document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
-  populateSlotSelect('mn-slot-select', slotId);
-  populateSlotSelect('food-slot-select', slotId);
   openMo('mo-meal');
 }
 
@@ -380,6 +380,7 @@ function populateSlotSelect(selectId, currentSlotId) {
 
 // ── MODAL: TAB-STEUERUNG (Suche / Scannen / Manuell) ────────────────────
 export function openMealModal() {
+  preselectedSlotId = null;
   resetMealModal();
   document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
   openMo('mo-meal');
@@ -392,7 +393,7 @@ function resetMealModal() {
   document.getElementById('food-search-status').style.display = 'none';
   document.getElementById('mn-edit-id').value = '';
   ['mn-name', 'mn-cal', 'mn-p', 'mn-c', 'mn-f'].forEach((id) => (document.getElementById(id).value = ''));
-  populateSlotSelect('mn-slot-select', null);
+  populateSlotSelect('mn-slot-select', preselectedSlotId);
   selectedProduct = null;
   stopScanner();
 }
@@ -478,7 +479,7 @@ function selectProduct(product) {
     <div style="font-size:11px;color:var(--muted);margin-top:6px">Pro 100g: ${product.per100.kcal} kcal · P ${product.per100.protein}g · K ${product.per100.carbs}g · F ${product.per100.fat}g</div>`;
 
   document.getElementById('food-grams').value = '100';
-  populateSlotSelect('food-slot-select', null);
+  populateSlotSelect('food-slot-select', preselectedSlotId);
   updateNutrientPreview();
 }
 
