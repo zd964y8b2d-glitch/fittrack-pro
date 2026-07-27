@@ -36,12 +36,13 @@ export async function getWorkoutLogs(userId, limit = 20) {
   return data || [];
 }
 
-export async function addWorkoutLog(userId, { workoutName, durationMin, exerciseCount }) {
+export async function addWorkoutLog(userId, { workoutName, durationMin, exerciseCount, burnedKcal }) {
   const { data, error } = await supabase
     .from('workouts')
     .insert({
       user_id: userId, kind: 'log', workout_name: workoutName,
       duration_min: durationMin, exercise_count: exerciseCount,
+      burned_kcal: burnedKcal || null,
       performed_at: new Date().toISOString(),
     })
     .select().single();
