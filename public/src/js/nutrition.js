@@ -18,6 +18,7 @@ let mealsCache = [];
 let selectedProduct = null;
 let html5QrCode = null;
 let searchDebounceTimer = null;
+let searchRequestId = 0; // Schutz gegen veraltete Suchantworten, die neuere überschreiben
 let activeNTab = 'today';
 let editingSlots = [];
 let burnedEntry = null; // aktueller {id, burned_kcal, burned_source} Datensatz für heute
@@ -422,13 +423,20 @@ export function onFoodSearchInput(query) {
   statusEl.style.display = 'block';
   statusEl.textContent = '🔍 Suche läuft...';
 
+  const thisRequestId = ++searchRequestId;
+
   searchDebounceTimer = setTimeout(async () => {
     try {
       const results = await searchFoodByName(query);
+      // Nur rendern, wenn zwischenzeitlich keine neuere Suche gestartet wurde -
+      // verhindert, dass eine langsame ältere Antwort eine neuere überschreibt
+      // und die Oberfläche dadurch "hängen" lässt.
+      if (thisRequestId !== searchRequestId) return;
       renderFoodResults(results);
       statusEl.style.display = results.length ? 'none' : 'block';
       if (!results.length) statusEl.textContent = 'Keine Treffer gefunden. Versuch einen anderen Suchbegriff oder trage es manuell ein.';
     } catch (err) {
+      if (thisRequestId !== searchRequestId) return;
       statusEl.style.display = 'block';
       statusEl.textContent = '⚠️ ' + (err.message || 'Suche fehlgeschlagen.');
     }
