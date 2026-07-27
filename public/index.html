@@ -169,9 +169,12 @@
       <div id="wv-coach" style="display:none"></div>
       <div id="wv-mine" style="display:none"></div>
       <div id="wv-history" style="display:none">
-        <div class="tab-bar" style="margin-bottom:12px">
-          <button class="tab-item active" id="htab-list" data-htab="list">Liste</button>
-          <button class="tab-item" id="htab-calendar" data-htab="calendar">Kalender</button>
+        <div class="row" style="margin-bottom:12px">
+          <div class="tab-bar" style="flex:1;margin-bottom:0">
+            <button class="tab-item active" id="htab-list" data-htab="list">Liste</button>
+            <button class="tab-item" id="htab-calendar" data-htab="calendar">Kalender</button>
+          </div>
+          <button id="btn-add-manual-workout" style="margin-left:8px;background:var(--accentBg);border:1px solid var(--accentBd);border-radius:11px;padding:0 14px;color:var(--accent2);font-weight:800;font-size:18px;cursor:pointer;flex-shrink:0">+</button>
         </div>
         <div id="hv-list"></div>
         <div id="hv-calendar" style="display:none">
@@ -236,6 +239,7 @@
         <div class="row" style="margin-bottom:9px">
           <div class="slbl" style="margin-bottom:0">Mahlzeiten</div>
           <div style="display:flex;gap:6px">
+            <button class="tag" style="cursor:pointer;border:none;background:var(--surface);color:var(--sub)" id="btn-nutrition-calendar">📅</button>
             <button class="tag" style="cursor:pointer;border:none;background:var(--surface);color:var(--sub)" id="btn-manage-slots">⚙️</button>
             <button class="tag ta" style="cursor:pointer;border:none" id="btn-open-meal-modal">+ Mahlzeit</button>
           </div>
@@ -450,11 +454,80 @@
 
 <!-- Kalender-Übersicht -->
 <!-- Workout-Session Detail (Verlauf) -->
+<!-- Manuelles Training nachtragen -->
+<div class="mo" id="mo-manual-workout">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-manual-workout">✕</button>
+  <div class="mt">Training nachtragen</div>
+
+  <div class="ig"><label>Datum</label>
+    <input id="mw-date" class="oi" type="date">
+  </div>
+
+  <div class="ig"><label>Art</label>
+    <select id="mw-type" class="oi">
+      <option value="strength">🏋️ Krafttraining</option>
+      <option value="walk">🚶 Spazieren / Gehen</option>
+      <option value="run">🏃 Laufen</option>
+      <option value="other">⚡ Sonstiges Ausdauertraining</option>
+    </select>
+  </div>
+
+  <div class="ig"><label>Name der Einheit</label>
+    <input id="mw-name" class="oi" type="text" placeholder="z.B. Abendspaziergang">
+  </div>
+
+  <div class="ir">
+    <div class="ig"><label>Dauer (Min)</label><input id="mw-duration" class="oi" type="number" inputmode="numeric" placeholder="30"></div>
+    <div class="ig" id="mw-distance-group" style="display:none"><label>Strecke (km)</label><input id="mw-distance" class="oi" type="number" inputmode="decimal" step="0.1" placeholder="3.0"></div>
+  </div>
+
+  <div class="ig" id="mw-steps-group" style="display:none">
+    <label>Schritte (automatisch geschätzt, editierbar)</label>
+    <input id="mw-steps" class="oi" type="number" inputmode="numeric" placeholder="0">
+  </div>
+
+  <div class="ig"><label>Anstrengung</label>
+    <select id="mw-rpe" class="oi">
+      <option value="1">😌 Leicht</option>
+      <option value="2">🙂 Etwas anstrengend</option>
+      <option value="3">😤 Hart</option>
+      <option value="4">🥵 Sehr hart</option>
+    </select>
+  </div>
+
+  <div style="background:var(--surface);border-radius:12px;padding:12px;margin-top:6px;text-align:center">
+    <div style="font-size:11px;color:var(--sub)">Geschätzt verbrannte Kalorien</div>
+    <div id="mw-kcal-preview" style="font-size:22px;font-weight:900;color:var(--orange);margin-top:2px">0 kcal</div>
+  </div>
+
+  <button class="btn-p" id="btn-save-manual-workout" style="margin-top:14px">Speichern</button>
+</div>
+</div>
+
 <div class="mo" id="mo-session-detail">
 <div class="ms">
   <div class="mh"></div><button class="mc" id="btn-close-session-detail">✕</button>
   <div class="mt" id="session-detail-title">Workout-Details</div>
   <div id="session-detail-content"></div>
+</div>
+</div>
+
+<!-- Kalender-Tag-Detail (Sprung zu Workout/Ernährung) -->
+<!-- Ernährungs-Rückblick (vergangener Tag) -->
+<div class="mo" id="mo-nutrition-review">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-nutrition-review">✕</button>
+  <div class="mt" id="nutrition-review-title">Ernährung</div>
+  <div id="nutrition-review-content"></div>
+</div>
+</div>
+
+<div class="mo" id="mo-cal-day-detail">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-cal-day-detail">✕</button>
+  <div class="mt">Tages-Details</div>
+  <div id="cal-day-detail-content"></div>
 </div>
 </div>
 
