@@ -628,4 +628,4 @@ export async function saveMealFromModal() {
   }
 }
 
-export function getMealsCache() { return mealsCache; 
+export function getMealsCache() { return mealsCache; }
