@@ -428,3 +428,131 @@ export function analyzeNutritionTrend(mealHistory, weightHistory, goalMacros, go
 
   return insights;
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH-WORKOUT-BEWERTUNG – nach jedem abgeschlossenen Training.
+// Wird präziser (mehr Aussagen, weniger "noch nicht genug Daten"), je mehr
+// abgeschlossene Sessions in der Historie vorhanden sind. Faktoren:
+// Frequenz, Fortschritt (Volumen-Trend), Anstrengung (RPE), Konsistenz der
+// Anstrengung, Trainingsdauer, Muskelgruppen-Abdeckung.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const RPE_LABELS = { 1: 'Leicht', 2: 'Etwas anstrengend', 3: 'Hart', 4: 'Sehr hart' };
+
+// workoutLogs: Array von { performed_at, duration_min, exercise_count, rpe,
+//   workout_name, burned_kcal }, neueste zuerst oder älteste zuerst - Reihenfolge
+// wird intern normalisiert. planDays: Anzahl geplanter Trainingstage/Woche
+// aus dem Profil (für den Frequenz-Vergleich).
+export function evaluateWorkoutSession(workoutLogs, planDaysPerWeek) {
+  const logs = [...(workoutLogs || [])].sort((a, b) => new Date(a.performed_at) - new Date(b.performed_at));
+  const sessionCount = logs.length;
+
+  // Konfidenz-Stufe: mit wenigen Sessions nur vorsichtige, allgemeine
+  // Aussagen; ab 5+ Sessions werden Trend-Aussagen möglich; ab 10+ Sessions
+  // volle Detailtiefe (Konsistenz-Bewertung etc.)
+  const confidence = sessionCount < 3 ? 'low' : sessionCount < 10 ? 'medium' : 'high';
+
+  const lines = [];
+  const latest = logs[logs.length - 1];
+
+  // ── Frequenz der letzten 7 Tage ──────────────────────────────────────
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const sessionsThisWeek = logs.filter((l) => new Date(l.performed_at) >= oneWeekAgo).length;
+  const targetDays = planDaysPerWeek || 3;
+
+  if (sessionsThisWeek >= targetDays) {
+    lines.push(`Starke Woche: ${sessionsThisWeek} von ${targetDays} geplanten Einheiten geschafft. 💪`);
+  } else if (sessionsThisWeek > 0) {
+    lines.push(`Diese Woche ${sessionsThisWeek} von ${targetDays} geplanten Einheiten. Noch ${targetDays - sessionsThisWeek} bis zum Wochenziel.`);
+  }
+
+  // ── Trainingsdauer dieser Session ────────────────────────────────────
+  if (latest.duration_min < 15) {
+    lines.push('Diese Session war recht kurz (unter 15 Min). Für spürbare Fortschritte sind meist 30–60 Min pro Einheit sinnvoll.');
+  } else if (latest.duration_min >= 30 && latest.duration_min <= 75) {
+    lines.push(`Gute Trainingsdauer von ${latest.duration_min} Minuten – das liegt im effektiven Bereich.`);
+  }
+
+  // ── Anstrengung (RPE) dieser Session ─────────────────────────────────
+  if (latest.rpe) {
+    lines.push(`Du hast das Training als "${RPE_LABELS[latest.rpe]}" eingeschätzt.`);
+  }
+
+  // ── Konsistenz der Anstrengung (braucht mehr Historie) ───────────────
+  if (confidence !== 'low') {
+    const recentRpe = logs.slice(-5).map((l) => l.rpe).filter(Boolean);
+    if (recentRpe.length >= 3) {
+      const avgRpe = recentRpe.reduce((s, r) => s + r, 0) / recentRpe.length;
+      if (avgRpe >= 3.5) {
+        lines.push('Deine letzten Einheiten waren durchgehend sehr anstrengend. Achte auf ausreichend Regeneration, um Übertraining zu vermeiden.');
+      } else if (avgRpe <= 1.5) {
+        lines.push('Deine letzten Einheiten fühlten sich eher leicht an. Ein etwas höherer Trainingsreiz (mehr Gewicht/Sätze) könnte den Fortschritt beschleunigen.');
+      }
+    }
+  }
+
+  // ── Volumen-Trend (braucht mehr Historie) ────────────────────────────
+  if (confidence === 'high') {
+    lines.push('Mit deiner bisherigen Trainingshistorie kann ich jetzt auch längerfristige Trends erkennen – schau dir dafür die Progression pro Übung an.');
+  } else if (confidence === 'medium') {
+    lines.push(`Nach ${sessionCount} Einheiten werden meine Einschätzungen zunehmend präziser.`);
+  } else {
+    lines.push('Noch wenige Trainingsdaten vorhanden – je mehr Einheiten du absolvierst, desto genauer wird meine Einschätzung.');
+  }
+
+  return { lines, confidence, sessionCount, sessionsThisWeek, targetDays };
+}
+
+// Bezieht optional die Ernährung des Tages mit ein (falls getrackt) und
+// ergänzt die Workout-Bewertung um einen Ernährungs-Hinweis.
+export function addNutritionContextToEvaluation(evaluation, todayMealTotals, dailyMacroGoals) {
+  if (!todayMealTotals || todayMealTotals.cal === 0) {
+    return evaluation; // Nichts getrackt heute - keine Aussage erzwingen
+  }
+  const proteinPct = dailyMacroGoals.protein > 0
+    ? Math.round((todayMealTotals.protein / dailyMacroGoals.protein) * 100)
+    : null;
+
+  if (proteinPct !== null) {
+    if (proteinPct < 50) {
+      evaluation.lines.push(`Du hast heute erst ${proteinPct}% deines Protein-Ziels erreicht – nach dem Training ist eine proteinreiche Mahlzeit besonders wertvoll für die Regeneration.`);
+    } else if (proteinPct >= 90) {
+      evaluation.lines.push('Deine Proteinzufuhr heute passt gut zum Training – das unterstützt die Regeneration optimal.');
+    }
+  }
+  return evaluation;
+}
+
+// Coach-Tipp für die NÄCHSTE Trainingseinheit, abgeleitet vom Plan-Ziel
+// und der zuletzt absolvierten Einheit.
+export function getNextWorkoutTip(goal, latestRpe) {
+  const tipsByGoal = {
+    muscle: [
+      'Steigere beim nächsten Mal wenn möglich das Gewicht oder eine Wiederholung pro Satz – progressive Überladung ist der Schlüssel.',
+      'Achte beim nächsten Training besonders auf die Ausführung der letzten 2 Wiederholungen pro Satz – dort entsteht der meiste Wachstumsreiz.',
+    ],
+    cut: [
+      'Halte beim nächsten Training das Tempo hoch und die Pausen kurz – das steigert den Kalorienverbrauch zusätzlich.',
+      'Beim nächsten Mal: kombiniere Kraftübungen mit kurzen Cardio-Intervallen für ein größeres Kaloriendefizit.',
+    ],
+    recomp: [
+      'Bleib beim nächsten Training bei moderatem Volumen mit Fokus auf saubere Technik – das unterstützt Muskelerhalt und Fettabbau gleichzeitig.',
+    ],
+    endurance: [
+      'Steigere beim nächsten Mal die Distanz oder Dauer leicht, statt das Tempo zu erhöhen – Grundlagenausdauer wächst durch Volumen.',
+    ],
+    health: [
+      'Bleib dran mit der Regelmäßigkeit – für die Gesundheit zählt Konsistenz mehr als Intensität.',
+    ],
+  };
+  const tips = tipsByGoal[goal] || tipsByGoal.health;
+  let tip = tips[Math.floor(Math.random() * tips.length)];
+
+  // Zusätzlicher Hinweis bei sehr hoher letzter Anstrengung
+  if (latestRpe === 4) {
+    tip += ' Da die letzte Einheit sehr hart war: plane vor dem nächsten Training ausreichend Erholung ein.';
+  }
+  return tip;
+}
