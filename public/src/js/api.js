@@ -51,6 +51,18 @@ export async function addWorkoutLog(userId, { workoutName, durationMin, exercise
   return data;
 }
 
+// Wandelt einen in der DB gespeicherten UTC-Zeitstempel (ISO-String) in
+// YYYY-MM-DD in der LOKALEN Zeitzone des Geräts um. Ein direktes
+// .slice(0,10) auf den UTC-String würde bei deutscher Zeit (UTC+1/+2) am
+// späten Abend bereits den nächsten Kalendertag zurückgeben.
+function utcTimestampToLocalDateStr(isoString) {
+  const d = new Date(isoString);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // Aggregiert Workout-Logs UND Ernährungstage für den Kalender: Gibt eine
 // Map von Datum (YYYY-MM-DD) zu { workoutGoals: [...], hasMeals: bool } zurück.
 export async function getCalendarData(userId, fromDate, toDate) {
@@ -67,12 +79,12 @@ export async function getCalendarData(userId, fromDate, toDate) {
 
   const byDay = {};
   (logsRes.data || []).forEach((log) => {
-    const day = log.performed_at.slice(0, 10);
+    const day = utcTimestampToLocalDateStr(log.performed_at);
     if (!byDay[day]) byDay[day] = { workoutGoals: [], hasMeals: false };
-    if (log.log_goal) byDay[day].workoutGoals.push(log.log_goal);
+    byDay[day].workoutGoals.push(log.log_goal || '_generic');
   });
   (mealsRes.data || []).forEach((meal) => {
-    const day = meal.measured_at.slice(0, 10);
+    const day = utcTimestampToLocalDateStr(meal.measured_at);
     if (!byDay[day]) byDay[day] = { workoutGoals: [], hasMeals: false };
     byDay[day].hasMeals = true;
   });
@@ -258,7 +270,7 @@ export async function getMealHistoryAggregated(userId, days = 14) {
   // Nach Kalendertag gruppieren und pro Tag aufsummieren
   const byDay = {};
   (data || []).forEach((m) => {
-    const day = m.measured_at.slice(0, 10); // YYYY-MM-DD
+    const day = utcTimestampToLocalDateStr(m.measured_at);
     if (!byDay[day]) byDay[day] = { date: day, totalKcal: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0 };
     byDay[day].totalKcal += m.kcal || 0;
     byDay[day].totalProtein += m.protein_g || 0;
@@ -281,12 +293,12 @@ export async function getWeightHistoryForTrend(userId, days = 21) {
     .gte('measured_at', since.toISOString())
     .order('measured_at', { ascending: true });
   if (error) throw error;
-  return (data || []).map((d) => ({ date: d.measured_at.slice(0, 10), weight: d.weight_kg }));
+  return (data || []).map((d) => ({ date: utcTimestampToLocalDateStr(d.measured_at), weight: d.weight_kg }));
 }
 
 // ── VERBRANNTE KALORIEN (manuell erfasst, z.B. aus Apple Health/Garmin) ─
 export async function getTodayBurnedCalories(userId) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = utcTimestampToLocalDateStr(new Date().toISOString());
   const { data, error } = await supabase
     .from('burned_calories').select('*')
     .eq('user_id', userId).eq('date', today)
@@ -296,7 +308,7 @@ export async function getTodayBurnedCalories(userId) {
 }
 
 export async function setTodayBurnedCalories(userId, kcal) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = utcTimestampToLocalDateStr(new Date().toISOString());
   const { data, error } = await supabase
     .from('burned_calories')
     .upsert({ user_id: userId, date: today, kcal, source: 'manual' }, { onConflict: 'user_id,date' })
