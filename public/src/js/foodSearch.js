@@ -61,16 +61,21 @@ async function safeParseJson(res) {
 
 // ── TEXTSUCHE (primär: Search-a-licious) ──────────────────────────────────
 async function searchViaSearchALicious(query, limit) {
+  // WICHTIG: Der langs-Parameter der Search-a-licious API erwartet die
+  // Sprachcodes durch Doppelpunkt getrennt (z.B. "de:en"), NICHT durch
+  // Komma - das ist eine Eigenheit dieser spezifischen API.
   const params = new URLSearchParams({
     q: query,
-    langs: 'de,en',
+    langs: 'de:en',
     page_size: String(limit),
     fields: REQUEST_FIELDS,
   });
   const res = await fetch(`${SEARCH_A_LICIOUS_URL}?${params.toString()}`);
   if (!res.ok) throw new Error('__HTTP_ERROR__');
   const data = await safeParseJson(res);
-  return data.hits || data.products || [];
+  // Die Antwortstruktur kann je nach API-Version variieren - wir prüfen
+  // alle bekannten möglichen Feldnamen für die Trefferliste.
+  return data.hits || data.products || data.results || [];
 }
 
 // ── TEXTSUCHE (Fallback: alter /cgi/search.pl Endpunkt) ───────────────────
