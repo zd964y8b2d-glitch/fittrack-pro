@@ -367,6 +367,31 @@
 </div>
 </div>
 
+<!-- RPE-Abfrage nach Workout-Ende -->
+<div class="mo" id="mo-rpe">
+<div class="ms">
+  <div class="mh"></div>
+  <div class="mt">Wie anstrengend war's?</div>
+  <p style="font-size:12px;color:var(--sub);margin-bottom:16px">Deine Einschätzung hilft dem Coach, dein Training besser zu bewerten.</p>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <button class="rpe-btn" data-rpe="1" style="width:100%;padding:16px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:15px;font-weight:700;cursor:pointer;text-align:left">😌 Leicht</button>
+    <button class="rpe-btn" data-rpe="2" style="width:100%;padding:16px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:15px;font-weight:700;cursor:pointer;text-align:left">🙂 Etwas anstrengend</button>
+    <button class="rpe-btn" data-rpe="3" style="width:100%;padding:16px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:15px;font-weight:700;cursor:pointer;text-align:left">😤 Hart</button>
+    <button class="rpe-btn" data-rpe="4" style="width:100%;padding:16px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:15px;font-weight:700;cursor:pointer;text-align:left">🥵 Sehr hart</button>
+  </div>
+</div>
+</div>
+
+<!-- Coach-Auswertung nach dem Training -->
+<div class="mo" id="mo-workout-eval">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-eval-modal">✕</button>
+  <div class="mt">🏆 Training abgeschlossen</div>
+  <div id="eval-content"></div>
+  <button class="btn-p" id="btn-close-eval" style="margin-top:16px">Weiter</button>
+</div>
+</div>
+
 <!-- Mahlzeiten-Slot Verwaltung -->
 <div class="mo" id="mo-slots">
 <div class="ms">
