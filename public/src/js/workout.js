@@ -7,7 +7,7 @@
 import {
   getMyPlan, addPlanExercise, updatePlanExercise, deletePlanExercise,
   appendExerciseHistory, getWorkoutLogs, addWorkoutLog, deleteWorkoutLog,
-  resetAllProgressHistory, getMealsForToday,
+  resetAllProgressHistory, getMealsForToday, getWorkoutLogById,
 } from './api.js';
 import {
   MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal,
@@ -773,9 +773,15 @@ function renderHistoryList() {
 }
 
 // ── VERLAUF: DETAIL-ANSICHT EINER SESSION ────────────────────────────────
-function openSessionDetail(logId) {
-  const log = workoutLogCache.find((w) => w.id === logId);
-  if (!log) return;
+async function openSessionDetail(logId) {
+  let log = workoutLogCache.find((w) => w.id === logId);
+  // Fallback: Log nicht im Cache (z.B. Sprung aus dem Kalender für einen
+  // Monat, der noch nicht per renderWorkoutHistory geladen wurde) - direkt
+  // per ID nachladen statt einfach nichts zu tun.
+  if (!log) {
+    try { log = await getWorkoutLogById(logId); } catch (e) { log = null; }
+  }
+  if (!log) { showToast('⚠️ Workout nicht gefunden'); return; }
 
   document.getElementById('session-detail-title').textContent = log.workout_name;
 
@@ -807,6 +813,131 @@ function openSessionDetail(logId) {
 
   document.getElementById('session-detail-content').innerHTML = header + exercisesHtml;
   openMo('mo-session-detail');
+}
+
+// ── MANUELLES TRAINING NACHTRAGEN (inkl. Gehen/Laufen) ───────────────────
+// Distanz-basierte Kalorienschätzung für Gehen/Laufen - präziser als eine
+// reine Zeit-MET-Schätzung, da sie die tatsächliche Strecke berücksichtigt.
+// Werte aus etablierter Sportmedizin: ca. 0.5 kcal/kg/km beim Gehen,
+// ca. 1.0 kcal/kg/km beim Laufen (relativ tempo-unabhängig, da höheres
+// Tempo zwar mehr Energie/Zeit kostet, aber auch die Zeit verkürzt).
+const KCAL_PER_KG_PER_KM = { walk: 0.5, run: 1.0 };
+
+// Durchschnittliche Schrittlänge zur Schätzung der Schrittzahl aus der
+// Distanz. Wird an die Körpergröße angepasst, falls im Profil vorhanden
+// (größere Menschen haben tendenziell längere Schritte).
+function estimateStepsFromDistance(km, heightCm) {
+  const heightM = (heightCm || 175) / 100;
+  const strideLength = heightM * 0.414; // gängige biomechanische Schätzformel
+  return Math.round((km * 1000) / strideLength);
+}
+
+export function openManualWorkoutModal() {
+  document.getElementById('mw-date').value = toLocalDateInputValue(new Date());
+  document.getElementById('mw-type').value = 'strength';
+  document.getElementById('mw-name').value = '';
+  document.getElementById('mw-duration').value = '';
+  document.getElementById('mw-distance').value = '';
+  document.getElementById('mw-steps').value = '';
+  document.getElementById('mw-rpe').value = '2';
+  toggleManualWorkoutFields();
+  updateManualWorkoutPreview();
+  openMo('mo-manual-workout');
+}
+
+function toLocalDateInputValue(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// Zeigt/versteckt die Distanz- und Schritte-Felder je nach gewählter Art,
+// und befüllt die Schrittzahl automatisch vor (bleibt editierbar).
+export function toggleManualWorkoutFields() {
+  const type = document.getElementById('mw-type').value;
+  const isWalkOrRun = type === 'walk' || type === 'run';
+  document.getElementById('mw-distance-group').style.display = isWalkOrRun ? '' : 'none';
+  document.getElementById('mw-steps-group').style.display = isWalkOrRun ? '' : 'none';
+  updateManualWorkoutPreview();
+}
+
+export function onManualWorkoutDistanceInput() {
+  const type = document.getElementById('mw-type').value;
+  const distance = parseFloat(document.getElementById('mw-distance').value) || 0;
+  if ((type === 'walk' || type === 'run') && distance > 0) {
+    const steps = estimateStepsFromDistance(distance, currentProfile?.height_cm);
+    document.getElementById('mw-steps').value = steps;
+  }
+  updateManualWorkoutPreview();
+}
+
+function updateManualWorkoutPreview() {
+  const type = document.getElementById('mw-type').value;
+  const duration = parseInt(document.getElementById('mw-duration').value) || 0;
+  const distance = parseFloat(document.getElementById('mw-distance').value) || 0;
+  const weight = currentProfile?.weight_kg || 75;
+
+  let kcal;
+  if (type === 'walk' || type === 'run') {
+    kcal = Math.round(distance * weight * KCAL_PER_KG_PER_KM[type]);
+  } else {
+    kcal = estimateBurnedCalories(duration, weight);
+  }
+  document.getElementById('mw-kcal-preview').textContent = `${kcal} kcal`;
+}
+
+export async function saveManualWorkout() {
+  const type = document.getElementById('mw-type').value;
+  const name = document.getElementById('mw-name').value.trim() ||
+    { strength: 'Krafttraining', walk: 'Spaziergang', run: 'Lauftraining', other: 'Ausdauertraining' }[type];
+  const duration = parseInt(document.getElementById('mw-duration').value) || 0;
+  const distance = parseFloat(document.getElementById('mw-distance').value) || 0;
+  const steps = parseInt(document.getElementById('mw-steps').value) || 0;
+  const rpe = parseInt(document.getElementById('mw-rpe').value);
+  const dateStr = document.getElementById('mw-date').value;
+
+  if (!duration && !distance) { showToast('⚠️ Bitte Dauer oder Strecke angeben'); return; }
+
+  const weight = currentProfile?.weight_kg || 75;
+  const isWalkOrRun = type === 'walk' || type === 'run';
+  const burnedKcal = isWalkOrRun
+    ? Math.round(distance * weight * KCAL_PER_KG_PER_KM[type])
+    : estimateBurnedCalories(duration, weight);
+
+  const goalMap = { strength: currentProfile?.goals?.[0] || 'muscle', walk: 'endurance', run: 'endurance', other: 'endurance' };
+
+  try {
+    assertOnline();
+    const performedAt = new Date(dateStr + 'T12:00:00').toISOString();
+    await addWorkoutLog(currentUser.id, {
+      workoutName: name,
+      durationMin: duration,
+      exerciseCount: isWalkOrRun ? 1 : 0,
+      burnedKcal,
+      rpe,
+      goal: goalMap[type],
+      sessionSnapshot: isWalkOrRun
+        ? [{ name, muscle: 'Ganzkörper', isBodyweight: true, sets: [{ reps: 1, weight: 0, done: true }], distanceKm: distance, steps }]
+        : [],
+      performedAtOverride: performedAt,
+    });
+    closeMo('mo-manual-workout');
+    renderWorkoutHistory();
+    showToast('✅ Training nachgetragen');
+  } catch (e) {
+    showToast('⚠️ Speichern fehlgeschlagen');
+  }
+}
+
+// Öffentlicher Einstiegspunkt: springt direkt zu einer Session-Detailansicht,
+// z.B. von einem "Öffnen"-Button im Kalender-Tagesdetail aus.
+export async function jumpToWorkoutLog(logId) {
+  closeMo('mo-cal-day-detail');
+  closeMo('mo-calendar');
+  showApp('workout');
+  wTab('history');
+  await openSessionDetail(logId);
 }
 
 // ── VERLAUF: LISTE / KALENDER TOGGLE ──────────────────────────────────────
