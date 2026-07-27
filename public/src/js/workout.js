@@ -7,20 +7,25 @@
 import {
   getMyPlan, addPlanExercise, updatePlanExercise, deletePlanExercise,
   appendExerciseHistory, getWorkoutLogs, addWorkoutLog, deleteWorkoutLog,
-  resetAllProgressHistory,
+  resetAllProgressHistory, getMealsForToday,
 } from './api.js';
-import { MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal } from './coachData.js';
-import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp } from './ui.js';
+import {
+  MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal,
+  evaluateWorkoutSession, addNutritionContextToEvaluation, getNextWorkoutTip,
+} from './coachData.js';
+import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 
 let currentUser = null;
 let currentProfile = null;
 let myPlanCache = [];
 let wActive = false, wTimer = null, wSecs = 0, wDone = 0;
+let wStartTimestamp = null; // Date.now() beim Start - Timer wird daraus berechnet, nicht hochgezählt
 let sessData = {}; // index -> {weight, sets, reps} während einer aktiven Session
 let activeWTab = 'active';
 let removedEmptyDays = new Set(); // Tage, die der Nutzer bewusst entfernt hat
 let collapsedGoalSections = new Set(); // Ziel-Sektionen, die eingeklappt sind
+let activeExercises = []; // NUR die Übungen des gestarteten Tages (nicht der komplette Plan)
 
 export function initWorkoutModule(user, profile) {
   currentUser = user;
@@ -51,7 +56,7 @@ let activeDayLabel = 'Workout';
 
 function getSessSets(i) {
   if (!sessData[i]) {
-    const ex = myPlanCache[i];
+    const ex = activeExercises[i];
     let details = [];
     try { details = ex.set_details ? JSON.parse(ex.set_details) : null; } catch(e) { details = null; }
     if (!details || !details.length) {
@@ -80,7 +85,7 @@ window.stepSet = function(i, si, field, delta) {
   if (el) el.textContent = field === 'weight' ? s.weight + ' kg' : s.reps;
   const volEl = document.getElementById(`vol-${i}`);
   if (volEl) {
-    const ex = myPlanCache[i];
+    const ex = activeExercises[i];
     volEl.textContent = 'Vol: ' + calcVolFromSets(sets, ex.is_bodyweight) + (ex.is_bodyweight ? ' Wdh.' : ' kg');
   }
 };
@@ -145,67 +150,156 @@ async function renderActiveWorkout() {
   if (!myPlanCache.length) await refreshMyPlan();
 
   if (wActive) {
-    const totalSets = myPlanCache.reduce((sum, ex, i) => sum + getSessSets(i).length, 0);
-    const doneSets  = myPlanCache.reduce((sum, ex, i) => sum + getSessSets(i).filter(s=>s.done).length, 0);
+    const totalSets = activeExercises.reduce((sum, ex, i) => sum + getSessSets(i).length, 0);
+    const doneSets  = activeExercises.reduce((sum, ex, i) => sum + getSessSets(i).filter(s=>s.done).length, 0);
     box.innerHTML = `<div class="card active-card" style="margin-bottom:12px">
       <div class="row" style="align-items:flex-start;margin-bottom:12px">
         <div>
           <div class="active-pill"><span class="pulse">●</span> AKTIV</div>
           <div style="font-size:17px;font-weight:800">${activeDayLabel}</div>
-          <div style="font-size:12px;color:var(--sub);margin-top:2px" id="timer">${fmtTime(wSecs)} · ${doneSets}/${totalSets} Sätze</div>
+          <div style="font-size:12px;color:var(--sub);margin-top:2px" id="timer">${fmtTime(getElapsedSeconds())} · ${doneSets}/${totalSets} Sätze</div>
         </div>
         <button onclick="window.stopWorkout()" style="background:var(--redBg);border:1px solid rgba(231,69,58,.3);border-radius:11px;padding:8px 13px;color:var(--red);font-size:12px;font-weight:700;cursor:pointer">Beenden</button>
       </div>
-      ${myPlanCache.map((ex, i) => exerciseCardHTML(ex, i)).join('')}
+      ${activeExercises.map((ex, i) => exerciseCardHTML(ex, i)).join('')}
     </div>`;
   } else {
-    box.innerHTML = `<button class="btn-p" onclick="window.startWorkout()" style="margin-bottom:14px">⚡ Workout starten</button>
-      <div class="coach-tip"><div class="ct-icon">💡</div><div><div class="ct-lbl">TIPP</div><div class="ct-txt">Tippe auf eine Übung um sie aufzuklappen. Jeder Satz ist einzeln anpassbar – hake ihn ab sobald du ihn geschafft hast.</div></div></div>`;
+    box.innerHTML = `<div class="coach-tip"><div class="ct-icon">💡</div><div><div class="ct-lbl">TIPP</div><div class="ct-txt">Starte einen Tag direkt aus "Mein Plan" über den Button "⚡ [Tagname] starten". Tippe auf eine Übung um sie aufzuklappen, jeder Satz ist einzeln anpassbar.</div></div></div>`;
   }
 }
 
-window.startWorkout = async function (dayLabel) {
+// Berechnet die verstrichene Zeit aus dem tatsächlichen Startzeitpunkt statt
+// hochzuzählen. Das ist robust gegen von Safari gedrosselte/pausierte
+// Timer (z.B. bei gesperrtem Display) - die Anzeige "holt" nach dem
+// Entsperren sofort die korrekte, tatsächlich verstrichene Zeit nach,
+// statt Sekunden zu verlieren.
+function getElapsedSeconds() {
+  if (!wStartTimestamp) return 0;
+  return Math.floor((Date.now() - wStartTimestamp) / 1000);
+}
+
+// Grobe Kalorienschätzung nach MET-Prinzip (Metabolic Equivalent of Task).
+// MET 5.0 entspricht etwa moderatem Krafttraining. kcal = MET × Gewicht(kg) × Stunden.
+// Das ist eine anerkannte Standard-Schätzformel, keine exakte Messung -
+// für eine exakte Messung wäre ein Herzfrequenzsensor nötig (siehe
+// "Verbrannte Kalorien" manuelles Feld in der Ernährung für echte Wearable-Daten).
+const WORKOUT_MET = 5.0;
+function estimateBurnedCalories(durationMin, bodyWeightKg) {
+  const weight = bodyWeightKg || 75; // Fallback falls kein Gewicht im Profil hinterlegt
+  const hours = durationMin / 60;
+  return Math.round(WORKOUT_MET * weight * hours);
+}
+
+window.startWorkout = async function (dayLabel, day) {
   if (!myPlanCache.length) await refreshMyPlan();
-  if (!myPlanCache.length) { showToast('⚠️ Dein Plan ist leer. Füge zuerst Übungen hinzu.'); return; }
-  wActive = true; wSecs = 0; wDone = 0; sessData = {}; expandedEx = {};
-  activeDayLabel = dayLabel || (myPlanCache[0]?.day_name || 'Workout');
+
+  // NUR die Übungen des angeklickten Tages verwenden, nicht den ganzen Plan.
+  // Ohne day-Parameter (Fallback/Altverhalten) wird der erste vorhandene Tag genommen.
+  const targetDay = day || myPlanCache[0]?.plan_day;
+  activeExercises = targetDay ? myPlanCache.filter((e) => e.plan_day === targetDay) : myPlanCache;
+
+  if (!activeExercises.length) { showToast('⚠️ Dieser Tag ist leer. Füge zuerst Übungen hinzu.'); return; }
+
+  wActive = true; wStartTimestamp = Date.now(); wSecs = 0; wDone = 0; sessData = {}; expandedEx = {};
+  activeDayLabel = dayLabel || (activeExercises[0]?.day_name || 'Workout');
   showApp('workout'); wTab('active');
   wTimer = setInterval(() => {
-    wSecs++;
     const el = document.getElementById('timer');
     if (el) {
-      const totalSets = myPlanCache.reduce((sum, ex, i) => sum + getSessSets(i).length, 0);
-      const doneSets  = myPlanCache.reduce((sum, ex, i) => sum + getSessSets(i).filter(s=>s.done).length, 0);
-      el.textContent = `${fmtTime(wSecs)} · ${doneSets}/${totalSets} Sätze`;
+      const totalSets = activeExercises.reduce((sum, ex, i) => sum + getSessSets(i).length, 0);
+      const doneSets  = activeExercises.reduce((sum, ex, i) => sum + getSessSets(i).filter(s=>s.done).length, 0);
+      el.textContent = `${fmtTime(getElapsedSeconds())} · ${doneSets}/${totalSets} Sätze`;
     }
   }, 1000);
   renderActiveWorkout();
 };
 
-window.stopWorkout = finishWorkout;
+// Schritt 1: Bestätigung "Workout jetzt beenden?"
+window.stopWorkout = function () {
+  if (!confirm('Workout jetzt beenden?')) return;
+  openMo('mo-rpe');
+};
 
-async function finishWorkout() {
+// Schritt 2: RPE-Auswahl (wird per Button-Klick im Modal aufgerufen)
+window.selectRpeAndFinish = async function (rpe) {
+  closeMo('mo-rpe');
+  await finishWorkout(rpe);
+};
+
+// Schritt 3: Speichern + Coach-Auswertung berechnen und anzeigen
+async function finishWorkout(rpe) {
   try {
     assertOnline();
+    const durationMin = Math.round(getElapsedSeconds() / 60);
+    const burnedKcal = estimateBurnedCalories(durationMin, currentProfile?.weight_kg);
     await saveSessionToHistory();
     await addWorkoutLog(currentUser.id, {
       workoutName: activeDayLabel,
-      durationMin: Math.round(wSecs / 60),
-      exerciseCount: myPlanCache.length,
+      durationMin,
+      exerciseCount: activeExercises.length,
+      burnedKcal,
+      rpe,
     });
-    wActive = false; clearInterval(wTimer);
-    showToast('🎉 Workout gespeichert!');
-    showApp('progress');
-    await renderProgression();
+    wActive = false; clearInterval(wTimer); wStartTimestamp = null;
+
+    await showWorkoutEvaluation(rpe, burnedKcal, durationMin);
   } catch (err) {
     showToast(err.message?.includes('Internet') ? err.message : '⚠️ Fehler beim Speichern');
   }
 }
 
+// Baut die Coach-Auswertung auf (Punkte 3-5): Bewertung anhand Historie,
+// optional Ernährungs-Kontext, und ein Tipp fürs nächste Training.
+async function showWorkoutEvaluation(rpe, burnedKcal, durationMin) {
+  const goal = currentProfile?.goals?.[0] || 'muscle';
+  const planDaysPerWeek = currentProfile?.training_days || 3;
+
+  const allLogs = await getWorkoutLogs(currentUser.id, 60);
+  let evaluation = evaluateWorkoutSession(allLogs, planDaysPerWeek);
+
+  // Ernährung des Tages einbeziehen, falls getrackt (Punkt 4)
+  try {
+    const todaysMeals = await getMealsForToday(currentUser.id);
+    if (todaysMeals.length) {
+      const totals = mealTotals(todaysMeals);
+      const macroGoals = {
+        kcal: currentProfile.macro_kcal || 2000,
+        protein: currentProfile.macro_protein || 150,
+      };
+      evaluation = addNutritionContextToEvaluation(evaluation, totals, macroGoals);
+    }
+  } catch (e) { /* Ernährungsdaten optional - Fehler hier blockiert die Auswertung nicht */ }
+
+  const nextTip = getNextWorkoutTip(goal, rpe);
+
+  document.getElementById('eval-content').innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="row">
+        <div><div style="font-size:24px;font-weight:900">${durationMin} Min</div><div style="font-size:11px;color:var(--sub)">Dauer</div></div>
+        <div><div style="font-size:24px;font-weight:900;color:var(--orange)">~${burnedKcal}</div><div style="font-size:11px;color:var(--sub)">kcal verbrannt</div></div>
+        <div><div style="font-size:24px;font-weight:900">${evaluation.sessionCount}</div><div style="font-size:11px;color:var(--sub)">Einheiten total</div></div>
+      </div>
+    </div>
+    ${evaluation.lines.map(line => `<div class="coach-tip" style="margin-bottom:10px"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-BEWERTUNG</div><div class="ct-txt">${line}</div></div></div>`).join('')}
+    <div class="coach-tip" style="margin-bottom:10px;background:var(--accentBg);border-color:var(--accentBd)">
+      <div class="ct-icon">🎯</div><div><div class="ct-lbl">TIPP FÜR NÄCHSTES MAL</div><div class="ct-txt">${nextTip}</div></div>
+    </div>`;
+
+  openMo('mo-workout-eval');
+}
+
+// Wird geklickt, wenn der Nutzer die Auswertung schließt - erst DANN zur
+// Progression navigieren, damit die Auswertung nicht sofort verschwindet.
+window.closeWorkoutEvaluation = async function () {
+  closeMo('mo-workout-eval');
+  showApp('progress');
+  await renderProgression();
+};
+
 async function saveSessionToHistory() {
   const today = todayLbl();
-  for (let i = 0; i < myPlanCache.length; i++) {
-    const ex = myPlanCache[i];
+  for (let i = 0; i < activeExercises.length; i++) {
+    const ex = activeExercises[i];
     const sets = getSessSets(i);
     const vol = calcVolFromSets(sets, ex.is_bodyweight);
     const avgReps = Math.round(sets.reduce((s,x)=>s+x.reps,0) / sets.length);
@@ -379,9 +473,9 @@ async function renderMyPlan() {
   });
   document.querySelectorAll('#wv-mine [data-start-day]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      // Filtert myPlanCache serverseitig NICHT - Start-Button startet den kompletten aktuellen Plan
-      // (myPlanCache enthält bereits alle Übungen; Nutzer kann während des Workouts durchklicken)
-      window.startWorkout(btn.dataset.dayLabel);
+      // Startet NUR die Übungen dieses einen Tages (day-Parameter),
+      // nicht den kompletten "Mein Plan" über alle Tage/Ziele hinweg.
+      window.startWorkout(btn.dataset.dayLabel, btn.dataset.startDay);
     });
   });
 }
@@ -602,7 +696,7 @@ async function renderWorkoutHistory() {
         <div class="row" style="align-items:flex-start">
           <div>
             <div style="font-size:14px;font-weight:800">${w.workout_name}</div>
-            <div style="font-size:12px;color:var(--sub);margin-top:2px">${w.duration_min} Min · ${w.exercise_count} Übungen</div>
+            <div style="font-size:12px;color:var(--sub);margin-top:2px">${w.duration_min} Min · ${w.exercise_count} Übungen${w.burned_kcal ? ` · 🔥 ~${w.burned_kcal} kcal` : ''}</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span class="tag ta">${new Date(w.performed_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
