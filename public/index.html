@@ -148,7 +148,6 @@
       <div id="home-tip"></div>
       <div class="card" id="home-macros"></div>
       <div class="card" id="home-burned"></div>
-      <div class="card" id="home-next-workout"></div>
 
     </div>
   </div>
@@ -169,7 +168,21 @@
       <div id="wv-active"></div>
       <div id="wv-coach" style="display:none"></div>
       <div id="wv-mine" style="display:none"></div>
-      <div id="wv-history" style="display:none"></div>
+      <div id="wv-history" style="display:none">
+        <div class="tab-bar" style="margin-bottom:12px">
+          <button class="tab-item active" id="htab-list" data-htab="list">Liste</button>
+          <button class="tab-item" id="htab-calendar" data-htab="calendar">Kalender</button>
+        </div>
+        <div id="hv-list"></div>
+        <div id="hv-calendar" style="display:none">
+          <div class="row" style="margin-bottom:14px">
+            <button id="hcal-prev-month" style="background:var(--surface);border:none;border-radius:10px;width:36px;height:36px;color:var(--text);font-size:16px;cursor:pointer">‹</button>
+            <div id="hcal-month-label" style="font-size:15px;font-weight:800;flex:1;text-align:center"></div>
+            <button id="hcal-next-month" style="background:var(--surface);border:none;border-radius:10px;width:36px;height:36px;color:var(--text);font-size:16px;cursor:pointer">›</button>
+          </div>
+          <div id="hcal-grid"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -436,6 +449,15 @@
 </div>
 
 <!-- Kalender-Übersicht -->
+<!-- Workout-Session Detail (Verlauf) -->
+<div class="mo" id="mo-session-detail">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-session-detail">✕</button>
+  <div class="mt" id="session-detail-title">Workout-Details</div>
+  <div id="session-detail-content"></div>
+</div>
+</div>
+
 <div class="mo" id="mo-calendar">
 <div class="ms">
   <div class="mh"></div><button class="mc" id="btn-close-calendar-modal">✕</button>
