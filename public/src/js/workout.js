@@ -372,7 +372,12 @@ async function renderMyPlan() {
 
   const allDays = ['A','B','C','D','E','F','G'];
   const usedDays = [...new Set(myPlanCache.map(e => e.plan_day))].sort();
-  const displayDays = [...new Set([...usedDays, ...allDays.slice(0, Math.max(4, usedDays.length + 1))])].filter(d => usedDays.includes(d) || !removedEmptyDays.has(d));
+  // Anzahl der vorausgefüllten leeren Tage richtet sich nach der im Profil
+  // gewählten Trainingshäufigkeit (z.B. 2x/Woche -> Tag A+B statt fix 4 Tage).
+  // Bereits befüllte Tage zählen natürlich immer, auch wenn es mehr sind
+  // als die ursprünglich gewählte Häufigkeit.
+  const targetDayCount = Math.max(u?.training_days || 3, usedDays.length);
+  const displayDays = [...new Set([...usedDays, ...allDays.slice(0, targetDayCount)])].filter(d => usedDays.includes(d) || !removedEmptyDays.has(d));
 
   const dayGoalMap = {};
   myPlanCache.forEach(ex => { if (ex.plan_goal) dayGoalMap[ex.plan_day] = ex.plan_goal; });
