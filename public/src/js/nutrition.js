@@ -5,7 +5,7 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getMealsBySlotHistory } from './api.js';
+import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getMealsBySlotHistory } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
@@ -245,7 +245,7 @@ function macroLegendHTML(protein, carbs, fat) {
   </div>`;
 }
 
-function mealRowHTML(ml) {
+function mealRowHTML(ml, readOnly = false) {
   return `<div class="card" style="margin-bottom:8px">
     <div class="row" style="align-items:flex-start">
       <div style="flex:1">
@@ -259,10 +259,10 @@ function mealRowHTML(ml) {
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:8px">
         <div style="font-size:16px;font-weight:900;color:var(--orange);margin-bottom:6px">${ml.kcal} kcal</div>
-        <div style="display:flex;gap:5px">
+        ${!readOnly ? `<div style="display:flex;gap:5px">
           <button class="edit-btn" data-edit-meal="${ml.id}">✏️</button>
           <button class="del-btn" data-del-meal="${ml.id}">✕</button>
-        </div>
+        </div>` : ''}
       </div>
     </div>
   </div>`;
@@ -640,3 +640,26 @@ export async function saveMealFromModal() {
 }
 
 export function getMealsCache() { return mealsCache; }
+
+// ── RÜCKBLICK: MAHLZEITEN EINES VERGANGENEN TAGES (Sprung aus dem Kalender) ─
+export async function showNutritionForDate(dateStr) {
+  try {
+    const meals = await getMealsForDate(currentUser.id, dateStr);
+    const t = mealTotals(meals);
+    const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+
+    document.getElementById('nutrition-review-title').textContent = dateLabel;
+    document.getElementById('nutrition-review-content').innerHTML = `
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:24px;font-weight:900">${t.cal} kcal</div>
+        ${macroLegendHTML(t.protein, t.carbs, t.fat)}
+      </div>
+      ${meals.length
+        ? meals.map((ml) => mealRowHTML(ml, true)).join('')
+        : `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Keine Mahlzeiten an diesem Tag.</div>`}`;
+
+    openMo('mo-nutrition-review');
+  } catch (e) {
+    showToast('⚠️ Konnte Ernährungstag nicht laden');
+  }
+}
