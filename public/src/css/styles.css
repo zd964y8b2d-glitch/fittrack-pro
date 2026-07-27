@@ -199,3 +199,6 @@ body{
 .add-inline-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;background:var(--accentBg);border:1.5px dashed var(--accentBd);border-radius:13px;padding:12px;font-size:13px;font-weight:700;color:var(--accent2);cursor:pointer;margin-top:6px;}
 
 #offline-banner{padding-top:calc(8px + var(--safe-top)) !important;}
+
+@keyframes btnspin{to{transform:rotate(360deg);}}
+button:disabled{opacity:.75;cursor:not-allowed;}
