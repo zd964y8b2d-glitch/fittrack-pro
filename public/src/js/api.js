@@ -36,7 +36,7 @@ export async function getWorkoutLogs(userId, limit = 20) {
   return data || [];
 }
 
-export async function addWorkoutLog(userId, { workoutName, durationMin, exerciseCount, burnedKcal, goal }) {
+export async function addWorkoutLog(userId, { workoutName, durationMin, exerciseCount, burnedKcal, goal, sessionSnapshot }) {
   const { data, error } = await supabase
     .from('workouts')
     .insert({
@@ -44,6 +44,7 @@ export async function addWorkoutLog(userId, { workoutName, durationMin, exercise
       duration_min: durationMin, exercise_count: exerciseCount,
       burned_kcal: burnedKcal || null,
       log_goal: goal || null,
+      session_snapshot: sessionSnapshot ? JSON.stringify(sessionSnapshot) : null,
       performed_at: new Date().toISOString(),
     })
     .select().single();
@@ -253,6 +254,30 @@ export async function deleteMeal(id) {
 }
 
 // Aggregiert Mahlzeiten der letzten N Tage für die Coach-Trendanalyse.
+// Mahlzeiten der letzten N Tage, gruppiert nach Mahlzeiten-Slot (für
+// Muster-Erkennung: welche Lebensmittel werden pro Slot wiederholt gegessen).
+export async function getMealsBySlotHistory(userId, days = 14) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  since.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .select('meal_name, meal_slot_id, kcal, protein_g, carbs_g, fat_g')
+    .eq('user_id', userId)
+    .not('meal_name', 'is', null)
+    .gte('measured_at', since.toISOString());
+  if (error) throw error;
+
+  const bySlot = {};
+  (data || []).forEach((m) => {
+    const slot = m.meal_slot_id || '_unassigned';
+    if (!bySlot[slot]) bySlot[slot] = [];
+    bySlot[slot].push({ name: m.meal_name, kcal: m.kcal || 0, protein: m.protein_g || 0, carbs: m.carbs_g || 0, fat: m.fat_g || 0 });
+  });
+  return bySlot;
+}
+
 export async function getMealHistoryAggregated(userId, days = 14) {
   const since = new Date();
   since.setDate(since.getDate() - days);
