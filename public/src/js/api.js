@@ -36,7 +36,13 @@ export async function getWorkoutLogs(userId, limit = 20) {
   return data || [];
 }
 
-export async function addWorkoutLog(userId, { workoutName, durationMin, exerciseCount, burnedKcal, goal, sessionSnapshot }) {
+export async function getWorkoutLogById(id) {
+  const { data, error } = await supabase.from('workouts').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function addWorkoutLog(userId, { workoutName, durationMin, exerciseCount, burnedKcal, goal, sessionSnapshot, performedAtOverride, rpe }) {
   const { data, error } = await supabase
     .from('workouts')
     .insert({
@@ -44,8 +50,11 @@ export async function addWorkoutLog(userId, { workoutName, durationMin, exercise
       duration_min: durationMin, exercise_count: exerciseCount,
       burned_kcal: burnedKcal || null,
       log_goal: goal || null,
+      rpe: rpe || null,
       session_snapshot: sessionSnapshot ? JSON.stringify(sessionSnapshot) : null,
-      performed_at: new Date().toISOString(),
+      // Erlaubt das Nachtragen eines Trainings für ein vergangenes Datum
+      // (z.B. "Training nachtragen" im Verlauf) statt immer "jetzt" zu speichern.
+      performed_at: performedAtOverride || new Date().toISOString(),
     })
     .select().single();
   if (error) throw error;
@@ -68,7 +77,7 @@ function utcTimestampToLocalDateStr(isoString) {
 // Map von Datum (YYYY-MM-DD) zu { workoutGoals: [...], hasMeals: bool } zurück.
 export async function getCalendarData(userId, fromDate, toDate) {
   const [logsRes, mealsRes] = await Promise.all([
-    supabase.from('workouts').select('performed_at, log_goal')
+    supabase.from('workouts').select('id, performed_at, log_goal, workout_name')
       .eq('user_id', userId).eq('kind', 'log')
       .gte('performed_at', fromDate).lte('performed_at', toDate),
     supabase.from('body_measurements').select('measured_at')
@@ -81,12 +90,12 @@ export async function getCalendarData(userId, fromDate, toDate) {
   const byDay = {};
   (logsRes.data || []).forEach((log) => {
     const day = utcTimestampToLocalDateStr(log.performed_at);
-    if (!byDay[day]) byDay[day] = { workoutGoals: [], hasMeals: false };
-    byDay[day].workoutGoals.push(log.log_goal || '_generic');
+    if (!byDay[day]) byDay[day] = { workouts: [], hasMeals: false };
+    byDay[day].workouts.push({ id: log.id, goal: log.log_goal || '_generic', name: log.workout_name });
   });
   (mealsRes.data || []).forEach((meal) => {
     const day = utcTimestampToLocalDateStr(meal.measured_at);
-    if (!byDay[day]) byDay[day] = { workoutGoals: [], hasMeals: false };
+    if (!byDay[day]) byDay[day] = { workouts: [], hasMeals: false };
     byDay[day].hasMeals = true;
   });
   return byDay;
@@ -180,6 +189,20 @@ export async function getMealsForToday(userId) {
   const { data, error } = await supabase
     .from('body_measurements').select('*').eq('user_id', userId)
     .not('meal_name', 'is', null).gte('measured_at', startOfDay.toISOString())
+    .order('measured_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+// Mahlzeiten eines BELIEBIGEN Tages (z.B. für den Sprung von Kalender/Verlauf
+// aus). dateStr im Format YYYY-MM-DD in lokaler Zeitzone.
+export async function getMealsForDate(userId, dateStr) {
+  const startOfDay = new Date(dateStr + 'T00:00:00');
+  const endOfDay = new Date(dateStr + 'T23:59:59.999');
+  const { data, error } = await supabase
+    .from('body_measurements').select('*').eq('user_id', userId)
+    .not('meal_name', 'is', null)
+    .gte('measured_at', startOfDay.toISOString()).lte('measured_at', endOfDay.toISOString())
     .order('measured_at', { ascending: true });
   if (error) throw error;
   return data || [];
