@@ -525,7 +525,11 @@ export async function saveSelectedProduct() {
     await renderNutrition();
     showToast('✅ Mahlzeit gespeichert');
   } catch (err) {
-    showToast(err.message?.includes('Internet') ? err.message : '⚠️ Speichern fehlgeschlagen');
+    // Echte Fehlermeldung anzeigen statt generischem Text - hilft bei der
+    // Diagnose, falls z.B. die Datenbank ein bestimmtes Format ablehnt.
+    console.error('saveSelectedProduct error:', err);
+    const detail = err.message?.includes('Internet') ? err.message : (err.message || 'Unbekannter Fehler');
+    showToast(`⚠️ Speichern fehlgeschlagen: ${detail}`);
   }
 }
 
