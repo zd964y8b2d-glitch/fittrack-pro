@@ -2,10 +2,12 @@
 // calendar.js
 // Monatskalender-Ansicht: zeigt pro Tag Icons für absolvierte Workouts
 // (nach Ziel-Typ) und ob Ernährung getrackt wurde. Antippen eines Tages
-// zeigt eine kurze Detailzusammenfassung.
+// öffnet ein Detail-Modal mit den tatsächlichen Einträgen und Buttons,
+// um direkt zur jeweiligen Trainingseinheit (Verlauf) oder zum Ernährungs-
+// tag zu springen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { getCalendarData } from './api.js';
-import { openMo } from './ui.js';
+import { openMo, closeMo } from './ui.js';
 
 // Formatiert ein Datum als YYYY-MM-DD in der LOKALEN Zeitzone des Geräts.
 // toISOString() würde immer UTC verwenden, was bei deutscher Sommerzeit
@@ -22,8 +24,10 @@ let currentUser = null;
 let viewYear = new Date().getFullYear();
 let viewMonth = new Date().getMonth(); // 0-11
 let calendarDataCache = {};
+let selectedDayStr = null;
 
 const GOAL_ICONS = { muscle: '💪', cut: '🔥', recomp: '⚖️', endurance: '🏃', health: '❤️' };
+const GOAL_LABELS = { muscle: 'Muskelaufbau', cut: 'Fettabbau', recomp: 'Rekomposition', endurance: 'Ausdauer', health: 'Gesundheit', _generic: 'Training' };
 const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const WEEKDAY_LABELS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 
@@ -68,8 +72,7 @@ async function loadAndRenderMonth() {
 
 function renderMonthGrid() {
   const firstDay = new Date(viewYear, viewMonth, 1);
-  const lastDay = new Date(viewYear, viewMonth + 1, 0);
-  const daysInMonth = lastDay.getDate();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
   // Montag = 0 statt Sonntag = 0 (deutsche Wochenkonvention)
   let startWeekday = firstDay.getDay() - 1;
@@ -82,22 +85,19 @@ function renderMonthGrid() {
   </div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">`;
 
-  for (let i = 0; i < startWeekday; i++) {
-    html += `<div></div>`;
-  }
+  for (let i = 0; i < startWeekday; i++) html += `<div></div>`;
 
   for (let day = 1; day <= daysInMonth; day++) {
-    const dateObj = new Date(viewYear, viewMonth, day);
-    const dateStr = toLocalDateStr(dateObj);
+    const dateStr = toLocalDateStr(new Date(viewYear, viewMonth, day));
     const dayData = calendarDataCache[dateStr];
     const isToday = dateStr === todayStr;
-    const hasWorkout = dayData?.workoutGoals?.length > 0;
+    const hasWorkout = dayData?.workouts?.length > 0;
     const hasMeals = dayData?.hasMeals;
 
     const icons = [];
     if (hasWorkout) {
-      const uniqueGoals = [...new Set(dayData.workoutGoals)];
-      uniqueGoals.slice(0, 2).forEach(g => icons.push(GOAL_ICONS[g] || '🏋️'));
+      const uniqueGoals = [...new Set(dayData.workouts.map((w) => w.goal))];
+      uniqueGoals.slice(0, 2).forEach((g) => icons.push(GOAL_ICONS[g] || '🏋️'));
     }
     if (hasMeals) icons.push('🥗');
 
@@ -115,23 +115,43 @@ function renderMonthGrid() {
   });
 }
 
+// Zeigt ein echtes Detail-Modal (statt alert) mit den tatsächlichen
+// Workout-Namen und Buttons, um direkt zum jeweiligen Eintrag zu springen.
 function showDayDetail(dateStr) {
+  selectedDayStr = dateStr;
   const dayData = calendarDataCache[dateStr];
   const dateLabel = new Date(dateStr).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
 
-  if (!dayData || (!dayData.workoutGoals?.length && !dayData.hasMeals)) {
-    alert(`${dateLabel}\n\nKeine Einträge an diesem Tag.`);
-    return;
+  let html = `<div style="font-size:13px;color:var(--sub);margin-bottom:14px">${dateLabel}</div>`;
+
+  if (!dayData || (!dayData.workouts?.length && !dayData.hasMeals)) {
+    html += `<div style="text-align:center;color:var(--muted);padding:16px;font-size:13px">Keine Einträge an diesem Tag.</div>`;
+  } else {
+    if (dayData.workouts?.length) {
+      html += dayData.workouts.map((w) => `
+        <div class="card" style="margin-bottom:10px">
+          <div class="row">
+            <div>
+              <div style="font-size:14px;font-weight:800">${GOAL_ICONS[w.goal] || '🏋️'} ${w.name || GOAL_LABELS[w.goal] || 'Training'}</div>
+            </div>
+            <button data-jump-workout="${w.id}" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:9px;padding:7px 12px;color:var(--accent2);font-size:12px;font-weight:700;cursor:pointer">Öffnen</button>
+          </div>
+        </div>`).join('');
+    }
+    if (dayData.hasMeals) {
+      html += `<div class="card" style="margin-bottom:10px">
+        <div class="row">
+          <div style="font-size:14px;font-weight:800">🥗 Ernährung</div>
+          <button data-jump-nutrition="${dateStr}" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:9px;padding:7px 12px;color:var(--accent2);font-size:12px;font-weight:700;cursor:pointer">Öffnen</button>
+        </div>
+      </div>`;
+    }
   }
 
-  const parts = [dateLabel, ''];
-  if (dayData.workoutGoals?.length) {
-    const goalLabels = { muscle: 'Muskelaufbau', cut: 'Fettabbau', recomp: 'Rekomposition', endurance: 'Ausdauer', health: 'Gesundheit' };
-    const goalLabels2 = { ...goalLabels, _generic: 'Training' };
-    parts.push(`Training: ${dayData.workoutGoals.map(g => `${GOAL_ICONS[g] || '🏋️'} ${goalLabels2[g] || g}`).join(', ')}`);
-  }
-  if (dayData.hasMeals) {
-    parts.push('🥗 Ernährung wurde getrackt');
-  }
-  alert(parts.join('\n'));
+  document.getElementById('cal-day-detail-content').innerHTML = html;
+  openMo('mo-cal-day-detail');
+}
+
+export function getSelectedCalendarDay() {
+  return selectedDayStr;
 }
