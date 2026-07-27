@@ -3,26 +3,29 @@
 // Anbindung an Open Food Facts – kostenlose, offene Lebensmitteldatenbank.
 // Kein API-Key nötig. Unterstützt Textsuche und Barcode-Lookup.
 //
-// SUCHE: Nutzt primär die moderne Search-a-licious API
-// (search.openfoodfacts.org), da der alte /cgi/search.pl Endpunkt laut
-// Open Food Facts' eigenem Status als "legacy" gilt, gelegentlich HTTP 503
-// Fehler (mit HTML statt JSON) liefert und für neue Integrationen nicht
-// mehr empfohlen wird. Bei einem Ausfall der neuen API greift automatisch
-// ein Fallback auf die alte Suche, damit die Suche insgesamt robuster ist.
+// SUCHE-STRATEGIE: Open Food Facts bietet keine echte Volltext-/Teilstring-
+// suche über die offiziellen v2/v3 APIs an (nur strukturierte Tag-Filter).
+// Die einzigen zwei Optionen für Namenssuche sind:
+//   1. /cgi/search.pl (legacy, aber unterstützt Teilstring-Suche zuverlässig
+//      - z.B. "Skyr" findet auch "Skyr Vanille") - PRIMÄR verwendet
+//   2. search.openfoodfacts.org (Search-a-licious, moderne Beta-API) -
+//      FALLBACK, falls der Legacy-Endpunkt mal nicht erreichbar ist
+// Bei einem 503-Fehler (häufigster Fehlerfall bei search.pl) wird zusätzlich
+// einmal automatisch erneut versucht, da das oft ein temporärer Lastspitzen-
+// Fehler ist, der Sekunden später bereits wieder verschwunden ist.
 //
 // Alle zurückgegebenen Nährwerte sind PRO 100g/100ml, damit die App die
 // tatsächlich gewählte Grammzahl frei umrechnen kann (wie bei FDDB).
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SEARCH_A_LICIOUS_URL = 'https://search.openfoodfacts.org/search';
 const OFF_LEGACY_SEARCH_URL = 'https://de.openfoodfacts.org/cgi/search.pl';
+const SEARCH_A_LICIOUS_URL = 'https://search.openfoodfacts.org/search';
 const OFF_PRODUCT_URL = 'https://de.openfoodfacts.org/api/v2/product';
 
 const REQUEST_FIELDS = 'code,product_name,product_name_de,generic_name,generic_name_de,brands,image_front_small_url,image_small_url,nutriments';
 
 // Wandelt einen rohen Open Food Facts Produkt-Datensatz in unser
-// einheitliches, schlankes Format um. Funktioniert für beide API-Varianten,
-// da beide dieselbe zugrundeliegende Produktstruktur verwenden.
+// einheitliches, schlankes Format um.
 function normalizeProduct(p) {
   const n = p.nutriments || {};
   return {
@@ -55,30 +58,22 @@ async function safeParseJson(res) {
   try {
     return JSON.parse(text);
   } catch (parseErr) {
-    throw new Error('__INVALID_JSON__'); // Interner Marker, wird von Aufrufer abgefangen
+    throw new Error('__INVALID_JSON__');
   }
 }
 
-// ── TEXTSUCHE (primär: Search-a-licious) ──────────────────────────────────
-async function searchViaSearchALicious(query, limit) {
-  // WICHTIG: Der langs-Parameter der Search-a-licious API erwartet die
-  // Sprachcodes durch Doppelpunkt getrennt (z.B. "de:en"), NICHT durch
-  // Komma - das ist eine Eigenheit dieser spezifischen API.
-  const params = new URLSearchParams({
-    q: query,
-    langs: 'de:en',
-    page_size: String(limit),
-    fields: REQUEST_FIELDS,
-  });
-  const res = await fetch(`${SEARCH_A_LICIOUS_URL}?${params.toString()}`);
-  if (!res.ok) throw new Error('__HTTP_ERROR__');
-  const data = await safeParseJson(res);
-  // Die Antwortstruktur kann je nach API-Version variieren - wir prüfen
-  // alle bekannten möglichen Feldnamen für die Trefferliste.
-  return data.hits || data.products || data.results || [];
+async function fetchWithOneRetry(url) {
+  let res = await fetch(url);
+  if (res.status === 503) {
+    // Kurze Pause, dann ein zweiter Versuch - 503 bei search.pl ist meist
+    // eine temporäre Lastspitze, kein dauerhafter Ausfall.
+    await new Promise((r) => setTimeout(r, 800));
+    res = await fetch(url);
+  }
+  return res;
 }
 
-// ── TEXTSUCHE (Fallback: alter /cgi/search.pl Endpunkt) ───────────────────
+// ── TEXTSUCHE (primär: legacy Endpunkt, da einzige echte Teilstring-Suche) ─
 async function searchViaLegacyEndpoint(query, limit) {
   const params = new URLSearchParams({
     search_terms: query,
@@ -89,16 +84,32 @@ async function searchViaLegacyEndpoint(query, limit) {
     lc: 'de',
     fields: REQUEST_FIELDS,
   });
-  const res = await fetch(`${OFF_LEGACY_SEARCH_URL}?${params.toString()}`);
+  const res = await fetchWithOneRetry(`${OFF_LEGACY_SEARCH_URL}?${params.toString()}`);
   if (!res.ok) throw new Error('__HTTP_ERROR__');
   const data = await safeParseJson(res);
   return data.products || [];
 }
 
-// Sucht Produkte nach Namen. Versucht zuerst die moderne Search-a-licious
-// API; schlägt diese fehl (Netzwerkfehler, 503, ungültiges JSON), wird
-// automatisch auf den alten Endpunkt zurückgefallen, bevor ein Fehler an
-// die Oberfläche gemeldet wird.
+// ── TEXTSUCHE (Fallback: moderne Search-a-licious Beta-API) ───────────────
+async function searchViaSearchALicious(query, limit) {
+  // Der langs-Parameter dieser API erwartet Sprachcodes mit Doppelpunkt
+  // getrennt (z.B. "de:en"), nicht mit Komma.
+  const params = new URLSearchParams({
+    q: query,
+    langs: 'de:en',
+    page_size: String(limit),
+    fields: REQUEST_FIELDS,
+  });
+  const res = await fetch(`${SEARCH_A_LICIOUS_URL}?${params.toString()}`);
+  if (!res.ok) throw new Error('__HTTP_ERROR__');
+  const data = await safeParseJson(res);
+  return data.hits || data.products || data.results || [];
+}
+
+// Sucht Produkte nach Namen (Teilstring-Suche, z.B. "Skyr" findet auch
+// "Skyr Vanille"). Versucht zuerst den Legacy-Endpunkt; schlägt dieser fehl
+// oder liefert 0 Treffer, wird automatisch auf Search-a-licious zurück-
+// gefallen, bevor ein Fehler an die Oberfläche gemeldet wird.
 export async function searchFoodByName(query, limit = 20) {
   if (!query || query.trim().length < 3) return [];
   const trimmedQuery = query.trim();
@@ -107,17 +118,20 @@ export async function searchFoodByName(query, limit = 20) {
   let lastError = null;
 
   try {
-    rawProducts = await searchViaSearchALicious(trimmedQuery, limit);
+    rawProducts = await searchViaLegacyEndpoint(trimmedQuery, limit);
   } catch (err) {
     lastError = err;
   }
 
   if (!rawProducts || !rawProducts.length) {
     try {
-      rawProducts = await searchViaLegacyEndpoint(trimmedQuery, limit);
+      rawProducts = await searchViaSearchALicious(trimmedQuery, limit);
       lastError = null;
     } catch (err) {
-      lastError = err;
+      // Nur überschreiben wenn der erste Versuch auch schon fehlgeschlagen
+      // war - ein "0 Treffer" vom Legacy-Endpunkt ohne Fehler soll nicht
+      // durch einen Fallback-Fehler verdeckt werden.
+      if (lastError) lastError = err;
     }
   }
 
