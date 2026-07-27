@@ -556,3 +556,159 @@ export function getNextWorkoutTip(goal, latestRpe) {
   }
   return tip;
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACH-WISSENSBASIS – fachlich fundierte Prinzipien pro Trainingsbereich.
+// Dient als Grundlage für die Muster-Erkennung und Empfehlungen weiter unten.
+// Bewusst regelbasiert (Schwellenwerte, Formeln, etablierte Trainingslehre),
+// nicht als KI-Modell - siehe Projektnotiz zu technischer Machbarkeit.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const COACH_EXPERTISE = {
+  bodybuilding: {
+    // Volumen-Richtwerte nach Trainingslehre (Sätze pro Muskelgruppe/Woche)
+    // Quelle: gängige Hypertrophie-Forschung (Schoenfeld et al. u.a.)
+    weeklySetRanges: {
+      beginner: { min: 8, max: 12 },
+      intermediate: { min: 12, max: 18 },
+      advanced: { min: 15, max: 22 },
+    },
+    repRangeForGoal: { strength: '3-6', hypertrophy: '6-12', endurance: '12-20' },
+    restBetweenSets: { strength: '2-5 Min', hypertrophy: '60-90 Sek', endurance: '30-45 Sek' },
+    progressionPrinciple: 'Progressive Überladung: wöchentlich Gewicht ODER Wiederholungen ODER Sätze leicht steigern.',
+    antagonistPairs: [['Brust', 'Rücken'], ['Bizeps', 'Trizeps'], ['Quadrizeps', 'Beinbeuger']],
+  },
+  endurance: {
+    // Trainingszonen nach % der maximalen Herzfrequenz (klassische 5-Zonen-Methode)
+    zones: {
+      zone1: { pct: '50-60%', purpose: 'Regeneration' },
+      zone2: { pct: '60-70%', purpose: 'Grundlagenausdauer (Fettstoffwechsel)' },
+      zone3: { pct: '70-80%', purpose: 'Aerobe Kapazität' },
+      zone4: { pct: '80-90%', purpose: 'Schwellentraining' },
+      zone5: { pct: '90-100%', purpose: 'VO2max / Wettkampftempo' },
+    },
+    weeklyVolumeRule: '80/20-Regel: 80% der Trainingszeit niedrig-intensiv (Zone 1-2), nur 20% hochintensiv.',
+    progressionPrinciple: 'Wöchentliche Steigerung von Umfang oder Intensität max. 10%, um Übertraining/Verletzungen zu vermeiden.',
+  },
+  nutrition: {
+    // Makro-Verteilung nach Ziel (Bandbreiten aus etablierter Sporternährung)
+    macroRangesByGoal: {
+      muscle:    { proteinPerKg: [1.8, 2.4], fatPctOfKcal: [20, 30], carbsRemainder: true },
+      cut:       { proteinPerKg: [2.2, 2.8], fatPctOfKcal: [20, 30], carbsRemainder: true },
+      recomp:    { proteinPerKg: [2.0, 2.4], fatPctOfKcal: [20, 30], carbsRemainder: true },
+      endurance: { proteinPerKg: [1.4, 1.8], fatPctOfKcal: [20, 35], carbsRemainder: true },
+      health:    { proteinPerKg: [1.2, 1.6], fatPctOfKcal: [25, 35], carbsRemainder: true },
+    },
+    mealTimingPrinciple: 'Protein gleichmäßig über 3-5 Mahlzeiten verteilen (20-40g pro Mahlzeit) für optimale Muskelproteinsynthese.',
+    hydrationRule: '30-40ml Wasser pro kg Körpergewicht täglich, mehr bei intensivem Training.',
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ÜBUNGS-MUSTERERKENNUNG (Punkt 4) – erkennt Lieblingsübungen aus dem
+// eigenen Plan/Verlauf und schlägt Alternativen zur Abwechslung vor.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Datenbank an Alternativ-Übungen pro Muskelgruppe, um Abwechslung
+// vorzuschlagen ohne die Zielmuskulatur zu wechseln.
+export const EXERCISE_ALTERNATIVES = {
+  Brust: ['Schrägbankdrücken', 'Kabelfliegende', 'Dips', 'Liegestütze (Weit)', 'Pec Deck'],
+  Rücken: ['Latzug (enger Griff)', 'T-Bar Rudern', 'Klimmzüge (weiter Griff)', 'Rudern am Kabelzug', 'Inverted Rows'],
+  Schultern: ['Arnold Press', 'Face Pulls', 'Frontheben', 'Reverse Fliegende', 'Landmine Press'],
+  Bizeps: ['Hammer Curls', 'Konzentrations-Curls', 'Kabel-Curls', 'Prediger-Curls'],
+  Trizeps: ['Skull Crusher', 'Trizeps-Kickback', 'Overhead Extension', 'Enge Liegestütze'],
+  Beine: ['Bulgarische Kniebeuge', 'Beinpresse', 'Ausfallschritte', 'Sumo Kniebeuge', 'Step-Ups'],
+  Gesäß: ['Hip Thrust', 'Rumänisches Kreuzheben', 'Glutebridge', 'Cable Pull-Through'],
+  Bauch: ['Plank', 'Hanging Leg Raise', 'Russian Twist', 'Ab Rollout', 'Bicycle Crunch'],
+  Waden: ['Wadenheben (sitzend)', 'Einbeiniges Wadenheben', 'Donkey Calf Raise'],
+};
+
+// Analysiert die Plan-Historie (myPlanCache aktuelle Übungen + vergangene
+// Workout-Snapshots) und erkennt, welche Übungen am häufigsten trainiert
+// werden ("Lieblingsübungen") sowie Muskelgruppen, die selten variiert
+// werden - mit konkreten Alternativvorschlägen.
+export function analyzeExercisePatterns(planExercises, workoutSnapshots) {
+  const nameCount = {};
+  const muscleNameSets = {}; // Muskelgruppe -> Set der genutzten Übungsnamen
+
+  const allExercises = [
+    ...planExercises.map(e => ({ name: e.exercise_name, muscle: e.muscle_group })),
+    ...workoutSnapshots.flatMap(snap => snap.map(e => ({ name: e.name, muscle: e.muscle }))),
+  ];
+
+  allExercises.forEach(({ name, muscle }) => {
+    if (!name) return;
+    nameCount[name] = (nameCount[name] || 0) + 1;
+    if (!muscleNameSets[muscle]) muscleNameSets[muscle] = new Set();
+    muscleNameSets[muscle].add(name);
+  });
+
+  const totalSessions = workoutSnapshots.length || 1;
+
+  // Lieblingsübungen: Übungen die in >= 50% der Sessions vorkommen (ab 3 Sessions Mindestdatenmenge)
+  const favorites = Object.entries(nameCount)
+    .filter(([, count]) => totalSessions >= 3 && count / totalSessions >= 0.5)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name, count]) => ({ name, count, pct: Math.round((count / totalSessions) * 100) }));
+
+  // Muskelgruppen mit wenig Übungs-Variation (nur 1 Übung genutzt, trotz Alternativen verfügbar)
+  const lowVariation = Object.entries(muscleNameSets)
+    .filter(([muscle, names]) => names.size === 1 && EXERCISE_ALTERNATIVES[muscle])
+    .map(([muscle, names]) => {
+      const usedName = [...names][0];
+      const alternatives = (EXERCISE_ALTERNATIVES[muscle] || []).filter(alt => alt !== usedName).slice(0, 2);
+      return { muscle, usedName, alternatives };
+    });
+
+  return { favorites, lowVariation, totalSessions };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ERNÄHRUNGS-MUSTERERKENNUNG (Punkt 3) – erkennt häufig gegessene
+// Lebensmittel pro Mahlzeiten-Slot und schlägt basierend darauf eine
+// zum Makro-Ziel passende Kombination vor.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// mealsBySlotHistory: { slotId: [{ name, kcal, protein, carbs, fat }, ...] }
+// über die letzten N Tage. macroTargetForSlot: { kcal, protein, carbs, fat }
+// aus dem Coach-Ernährungsplan für diesen Slot.
+export function analyzeNutritionPatterns(mealsBySlotHistory, macroTargetsBySlot) {
+  const insights = [];
+  const suggestions = [];
+
+  Object.entries(mealsBySlotHistory).forEach(([slotId, meals]) => {
+    if (meals.length < 3) return; // Zu wenig Daten für belastbare Muster
+
+    const nameCount = {};
+    meals.forEach((m) => {
+      // Basisname ohne Grammzahl-Suffix wie "(200g)" für saubere Gruppierung
+      const baseName = m.name.replace(/\s*\(\d+g\)\s*$/, '');
+      nameCount[baseName] = (nameCount[baseName] || 0) + 1;
+    });
+
+    const topFood = Object.entries(nameCount).sort((a, b) => b[1] - a[1])[0];
+    if (topFood && topFood[1] >= 3) {
+      insights.push(`Du isst "${topFood[0]}" häufig (${topFood[1]}×) in diesem Slot – das scheint sich in deine Routine eingespielt zu haben.`);
+    }
+
+    // Vorschlag: die am häufigsten kombinierten Lebensmittel, die zusammen
+    // am nächsten an das Makro-Ziel dieses Slots herankommen.
+    const target = macroTargetsBySlot[slotId];
+    if (target) {
+      const avgKcal = meals.reduce((s, m) => s + m.kcal, 0) / meals.length;
+      const diff = avgKcal - target.kcal;
+      if (Math.abs(diff) > target.kcal * 0.25) {
+        suggestions.push({
+          slotId,
+          text: diff > 0
+            ? `Deine bisherigen Mahlzeiten in diesem Slot liegen im Schnitt ${Math.round(diff)} kcal über dem Coach-Ziel (${target.kcal} kcal).`
+            : `Deine bisherigen Mahlzeiten in diesem Slot liegen im Schnitt ${Math.round(Math.abs(diff))} kcal unter dem Coach-Ziel (${target.kcal} kcal).`,
+        });
+      }
+    }
+  });
+
+  return { insights, suggestions };
+}
