@@ -11,7 +11,7 @@ import {
 } from './api.js';
 import {
   MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal,
-  evaluateWorkoutSession, addNutritionContextToEvaluation, getNextWorkoutTip,
+  evaluateWorkoutSession, addNutritionContextToEvaluation, getNextWorkoutTip, analyzeExercisePatterns,
 } from './coachData.js';
 import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
@@ -23,6 +23,7 @@ let wActive = false, wTimer = null, wSecs = 0, wDone = 0;
 let wStartTimestamp = null; // Date.now() beim Start - Timer wird daraus berechnet, nicht hochgezählt
 let sessData = {}; // index -> {weight, sets, reps} während einer aktiven Session
 let activeWTab = 'active';
+let workoutLogCache = []; // Cache der Workout-Logs, für Muster-Erkennung und Verlauf-Anzeige
 let removedEmptyDays = new Set(); // Tage, die der Nutzer bewusst entfernt hat
 let collapsedGoalSections = new Set(); // Ziel-Sektionen, die eingeklappt sind
 let activeExercises = []; // NUR die Übungen des gestarteten Tages (nicht der komplette Plan)
@@ -235,6 +236,12 @@ async function finishWorkout(rpe) {
     // Ziel des trainierten Tages ermitteln (für Kalender-Icon) - alle
     // Übungen eines Tages teilen sich dasselbe Ziel.
     const sessionGoal = activeExercises[0]?.plan_goal || currentProfile?.goals?.[0] || null;
+    // Snapshot MUSS vor saveSessionToHistory() erstellt werden, da diese
+    // Funktion sessData danach zurücksetzt.
+    const sessionSnapshot = activeExercises.map((ex, i) => ({
+      name: ex.exercise_name, muscle: ex.muscle_group,
+      isBodyweight: ex.is_bodyweight, sets: getSessSets(i),
+    }));
     await saveSessionToHistory();
     await addWorkoutLog(currentUser.id, {
       workoutName: activeDayLabel,
@@ -243,6 +250,7 @@ async function finishWorkout(rpe) {
       burnedKcal,
       rpe,
       goal: sessionGoal,
+      sessionSnapshot,
     });
     wActive = false; clearInterval(wTimer); wStartTimestamp = null;
 
@@ -364,6 +372,28 @@ async function renderMyPlan() {
 
   if (warnings['_global']) {
     html += warnings['_global'].map((w) => `<div class="coach-warn" style="margin-bottom:12px"><div class="cw-icon">⚠️</div><div class="cw-txt">${w}</div></div>`).join('');
+  }
+
+  // Übungs-Muster-Erkennung (Punkt 4): Lieblingsübungen + Alternativvorschläge
+  if (!workoutLogCache.length) {
+    try { workoutLogCache = await getWorkoutLogs(currentUser.id, 60); } catch (e) { /* optional */ }
+  }
+  if (workoutLogCache.length >= 3) {
+    const snapshots = workoutLogCache.map((log) => {
+      try { return log.session_snapshot ? JSON.parse(log.session_snapshot) : []; } catch (e) { return []; }
+    }).filter((s) => s.length);
+    const patterns = analyzeExercisePatterns(myPlanCache, snapshots);
+
+    if (patterns.favorites.length) {
+      html += `<div class="coach-tip" style="margin-bottom:10px"><div class="ct-icon">⭐</div><div><div class="ct-lbl">DEINE LIEBLINGSÜBUNGEN</div>
+        <div class="ct-txt">${patterns.favorites.map(f => `${f.name} (${f.pct}% deiner Sessions)`).join(', ')}</div></div></div>`;
+    }
+    if (patterns.lowVariation.length) {
+      html += patterns.lowVariation.slice(0, 2).map((lv) =>
+        `<div class="coach-tip" style="margin-bottom:10px"><div class="ct-icon">💡</div><div><div class="ct-lbl">ABWECHSLUNG FÜR ${lv.muscle.toUpperCase()}</div>
+          <div class="ct-txt">Du nutzt bisher nur "${lv.usedName}". Zur Abwechslung: ${lv.alternatives.join(' oder ')}.</div></div></div>`
+      ).join('');
+    }
   }
 
   goalAnalysis.forEach(ga => {
@@ -699,9 +729,14 @@ export async function saveExerciseFromModal() {
 
 // ── VERLAUF ──────────────────────────────────────────────────────────────
 async function renderWorkoutHistory() {
-  const log = await getWorkoutLogs(currentUser.id, 30);
-  document.getElementById('wv-history').innerHTML = log.length
-    ? log.map((w) => `<div class="card">
+  workoutLogCache = await getWorkoutLogs(currentUser.id, 60);
+  renderHistoryList();
+}
+
+function renderHistoryList() {
+  const log = workoutLogCache;
+  document.getElementById('hv-list').innerHTML = log.length
+    ? log.map((w) => `<div class="card" data-open-session="${w.id}" style="cursor:pointer">
         <div class="row" style="align-items:flex-start">
           <div>
             <div style="font-size:14px;font-weight:800">${w.workout_name}</div>
@@ -715,8 +750,16 @@ async function renderWorkoutHistory() {
       </div>`).join('')
     : `<div style="text-align:center;color:var(--muted);padding:32px;font-size:13px">Noch keine Workouts. Starte dein erstes!</div>`;
 
+  document.querySelectorAll('#hv-list [data-open-session]').forEach(card => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('[data-del-log]')) return; // Löschen-Klick nicht als "öffnen" werten
+      openSessionDetail(card.dataset.openSession);
+    });
+  });
+
   document.querySelectorAll('[data-del-log]').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       if (!confirm('Diesen Workout-Eintrag löschen?')) return;
       try {
         await deleteWorkoutLog(btn.dataset.delLog);
@@ -727,6 +770,124 @@ async function renderWorkoutHistory() {
       }
     });
   });
+}
+
+// ── VERLAUF: DETAIL-ANSICHT EINER SESSION ────────────────────────────────
+function openSessionDetail(logId) {
+  const log = workoutLogCache.find((w) => w.id === logId);
+  if (!log) return;
+
+  document.getElementById('session-detail-title').textContent = log.workout_name;
+
+  let snapshot = [];
+  try { snapshot = log.session_snapshot ? JSON.parse(log.session_snapshot) : []; } catch (e) { snapshot = []; }
+
+  const dateLabel = new Date(log.performed_at).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+
+  const header = `<div class="card" style="margin-bottom:14px">
+    <div style="font-size:12px;color:var(--sub);margin-bottom:8px">${dateLabel}</div>
+    <div class="row">
+      <div><div style="font-size:20px;font-weight:900">${log.duration_min}</div><div style="font-size:10px;color:var(--sub)">Minuten</div></div>
+      <div><div style="font-size:20px;font-weight:900;color:var(--orange)">${log.burned_kcal || 0}</div><div style="font-size:10px;color:var(--sub)">kcal</div></div>
+      <div><div style="font-size:20px;font-weight:900">${log.exercise_count}</div><div style="font-size:10px;color:var(--sub)">Übungen</div></div>
+    </div>
+  </div>`;
+
+  const exercisesHtml = snapshot.length
+    ? snapshot.map((ex) => {
+        const col = MUSCLE_COLORS[ex.muscle] || '#8888A0';
+        const setsLine = (ex.sets || []).map((s) => ex.isBodyweight ? `${s.reps}` : `${s.reps}×${s.weight}kg`).join(' · ');
+        return `<div class="ex-row">
+          <div class="ex-name">${ex.name}</div>
+          <span class="ex-muscle" style="background:${col}22;color:${col}">${ex.muscle}</span>
+          <div class="ex-sub" style="margin-top:4px">${setsLine}</div>
+        </div>`;
+      }).join('')
+    : `<div style="text-align:center;color:var(--muted);padding:16px;font-size:12px">Für dieses Workout sind keine Detaildaten gespeichert (z.B. weil es vor diesem Feature abgeschlossen wurde).</div>`;
+
+  document.getElementById('session-detail-content').innerHTML = header + exercisesHtml;
+  openMo('mo-session-detail');
+}
+
+// ── VERLAUF: LISTE / KALENDER TOGGLE ──────────────────────────────────────
+let historyCalMonth = new Date().getMonth();
+let historyCalYear = new Date().getFullYear();
+
+export function switchHistoryTab(tab) {
+  document.getElementById('htab-list').classList.toggle('active', tab === 'list');
+  document.getElementById('htab-calendar').classList.toggle('active', tab === 'calendar');
+  document.getElementById('hv-list').style.display = tab === 'list' ? '' : 'none';
+  document.getElementById('hv-calendar').style.display = tab === 'calendar' ? '' : 'none';
+  if (tab === 'calendar') renderHistoryCalendar();
+}
+
+function toLocalDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+const MONTH_NAMES_H = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+
+function renderHistoryCalendar() {
+  document.getElementById('hcal-month-label').textContent = `${MONTH_NAMES_H[historyCalMonth]} ${historyCalYear}`;
+
+  // Log-Einträge des sichtbaren Monats nach Tag gruppieren
+  const byDay = {};
+  workoutLogCache.forEach((w) => {
+    const d = new Date(w.performed_at);
+    if (d.getMonth() === historyCalMonth && d.getFullYear() === historyCalYear) {
+      const key = toLocalDateStr(d);
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(w);
+    }
+  });
+
+  const firstDay = new Date(historyCalYear, historyCalMonth, 1);
+  const daysInMonth = new Date(historyCalYear, historyCalMonth + 1, 0).getDate();
+  let startWeekday = firstDay.getDay() - 1;
+  if (startWeekday < 0) startWeekday = 6;
+  const todayStr = toLocalDateStr(new Date());
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px">
+    ${['Mo','Di','Mi','Do','Fr','Sa','So'].map(d => `<div style="text-align:center;font-size:10px;color:var(--muted);font-weight:700">${d}</div>`).join('')}
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">`;
+
+  for (let i = 0; i < startWeekday; i++) html += `<div></div>`;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = toLocalDateStr(new Date(historyCalYear, historyCalMonth, day));
+    const dayLogs = byDay[dateStr] || [];
+    const isToday = dateStr === todayStr;
+    html += `<div ${dayLogs.length ? `data-hcal-day="${dateStr}"` : ''} style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:${dayLogs.length ? 'pointer' : 'default'};background:${isToday ? 'var(--accentBg)' : 'var(--surface)'};border:1px solid ${isToday ? 'var(--accentBd)' : 'var(--border)'}">
+      <div style="font-size:11px;font-weight:${isToday ? '800' : '600'};color:${isToday ? 'var(--accent2)' : 'var(--text)'}">${day}</div>
+      ${dayLogs.length ? `<div style="font-size:10px">🏋️</div>` : ''}
+    </div>`;
+  }
+  html += `</div>`;
+  document.getElementById('hcal-grid').innerHTML = html;
+
+  document.querySelectorAll('#hcal-grid [data-hcal-day]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const dayLogs = byDay[el.dataset.hcalDay];
+      if (dayLogs?.length === 1) openSessionDetail(dayLogs[0].id);
+      else if (dayLogs?.length > 1) openSessionDetail(dayLogs[0].id); // Erstes Workout des Tages öffnen
+    });
+  });
+}
+
+export function historyCalPrevMonth() {
+  historyCalMonth--;
+  if (historyCalMonth < 0) { historyCalMonth = 11; historyCalYear--; }
+  renderHistoryCalendar();
+}
+
+export function historyCalNextMonth() {
+  historyCalMonth++;
+  if (historyCalMonth > 11) { historyCalMonth = 0; historyCalYear++; }
+  renderHistoryCalendar();
 }
 
 // ── PROGRESSION ──────────────────────────────────────────────────────────
