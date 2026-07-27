@@ -7,6 +7,17 @@
 import { getCalendarData } from './api.js';
 import { openMo } from './ui.js';
 
+// Formatiert ein Datum als YYYY-MM-DD in der LOKALEN Zeitzone des Geräts.
+// toISOString() würde immer UTC verwenden, was bei deutscher Sommerzeit
+// (UTC+2) am Abend bereits den nächsten Kalendertag anzeigt - das war die
+// Ursache für die Datums-Verschiebung im Kalender.
+function toLocalDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 let currentUser = null;
 let viewYear = new Date().getFullYear();
 let viewMonth = new Date().getMonth(); // 0-11
@@ -64,7 +75,7 @@ function renderMonthGrid() {
   let startWeekday = firstDay.getDay() - 1;
   if (startWeekday < 0) startWeekday = 6;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toLocalDateStr(new Date());
 
   let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px">
     ${WEEKDAY_LABELS.map(d => `<div style="text-align:center;font-size:10px;color:var(--muted);font-weight:700">${d}</div>`).join('')}
@@ -77,7 +88,7 @@ function renderMonthGrid() {
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dateObj = new Date(viewYear, viewMonth, day);
-    const dateStr = dateObj.toISOString().slice(0, 10);
+    const dateStr = toLocalDateStr(dateObj);
     const dayData = calendarDataCache[dateStr];
     const isToday = dateStr === todayStr;
     const hasWorkout = dayData?.workoutGoals?.length > 0;
@@ -116,7 +127,8 @@ function showDayDetail(dateStr) {
   const parts = [dateLabel, ''];
   if (dayData.workoutGoals?.length) {
     const goalLabels = { muscle: 'Muskelaufbau', cut: 'Fettabbau', recomp: 'Rekomposition', endurance: 'Ausdauer', health: 'Gesundheit' };
-    parts.push(`Training: ${dayData.workoutGoals.map(g => `${GOAL_ICONS[g] || ''} ${goalLabels[g] || g}`).join(', ')}`);
+    const goalLabels2 = { ...goalLabels, _generic: 'Training' };
+    parts.push(`Training: ${dayData.workoutGoals.map(g => `${GOAL_ICONS[g] || '🏋️'} ${goalLabels2[g] || g}`).join(', ')}`);
   }
   if (dayData.hasMeals) {
     parts.push('🥗 Ernährung wurde getrackt');
