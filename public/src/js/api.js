@@ -36,18 +36,47 @@ export async function getWorkoutLogs(userId, limit = 20) {
   return data || [];
 }
 
-export async function addWorkoutLog(userId, { workoutName, durationMin, exerciseCount, burnedKcal }) {
+export async function addWorkoutLog(userId, { workoutName, durationMin, exerciseCount, burnedKcal, goal }) {
   const { data, error } = await supabase
     .from('workouts')
     .insert({
       user_id: userId, kind: 'log', workout_name: workoutName,
       duration_min: durationMin, exercise_count: exerciseCount,
       burned_kcal: burnedKcal || null,
+      log_goal: goal || null,
       performed_at: new Date().toISOString(),
     })
     .select().single();
   if (error) throw error;
   return data;
+}
+
+// Aggregiert Workout-Logs UND Ernährungstage für den Kalender: Gibt eine
+// Map von Datum (YYYY-MM-DD) zu { workoutGoals: [...], hasMeals: bool } zurück.
+export async function getCalendarData(userId, fromDate, toDate) {
+  const [logsRes, mealsRes] = await Promise.all([
+    supabase.from('workouts').select('performed_at, log_goal')
+      .eq('user_id', userId).eq('kind', 'log')
+      .gte('performed_at', fromDate).lte('performed_at', toDate),
+    supabase.from('body_measurements').select('measured_at')
+      .eq('user_id', userId).not('meal_name', 'is', null)
+      .gte('measured_at', fromDate).lte('measured_at', toDate),
+  ]);
+  if (logsRes.error) throw logsRes.error;
+  if (mealsRes.error) throw mealsRes.error;
+
+  const byDay = {};
+  (logsRes.data || []).forEach((log) => {
+    const day = log.performed_at.slice(0, 10);
+    if (!byDay[day]) byDay[day] = { workoutGoals: [], hasMeals: false };
+    if (log.log_goal) byDay[day].workoutGoals.push(log.log_goal);
+  });
+  (mealsRes.data || []).forEach((meal) => {
+    const day = meal.measured_at.slice(0, 10);
+    if (!byDay[day]) byDay[day] = { workoutGoals: [], hasMeals: false };
+    byDay[day].hasMeals = true;
+  });
+  return byDay;
 }
 
 export async function deleteWorkoutLog(id) {
