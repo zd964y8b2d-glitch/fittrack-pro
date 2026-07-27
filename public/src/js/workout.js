@@ -232,6 +232,9 @@ async function finishWorkout(rpe) {
     assertOnline();
     const durationMin = Math.round(getElapsedSeconds() / 60);
     const burnedKcal = estimateBurnedCalories(durationMin, currentProfile?.weight_kg);
+    // Ziel des trainierten Tages ermitteln (für Kalender-Icon) - alle
+    // Übungen eines Tages teilen sich dasselbe Ziel.
+    const sessionGoal = activeExercises[0]?.plan_goal || currentProfile?.goals?.[0] || null;
     await saveSessionToHistory();
     await addWorkoutLog(currentUser.id, {
       workoutName: activeDayLabel,
@@ -239,6 +242,7 @@ async function finishWorkout(rpe) {
       exerciseCount: activeExercises.length,
       burnedKcal,
       rpe,
+      goal: sessionGoal,
     });
     wActive = false; clearInterval(wTimer); wStartTimestamp = null;
 
