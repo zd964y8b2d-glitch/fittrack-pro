@@ -396,6 +396,13 @@ function wireStaticButtons() {
   on('btn-add-slot', 'click', () => addNewSlot());
   on('btn-save-slots', 'click', () => saveSlots());
 
+  // Workout-Ende: RPE-Abfrage und Coach-Auswertung
+  document.querySelectorAll('.rpe-btn').forEach((btn) => {
+    btn.addEventListener('click', () => window.selectRpeAndFinish(parseInt(btn.dataset.rpe)));
+  });
+  on('btn-close-eval-modal', 'click', () => window.closeWorkoutEvaluation());
+  on('btn-close-eval', 'click', () => window.closeWorkoutEvaluation());
+
   // Exercise Modal
   on('btn-close-ex-modal', 'click', () => closeMo('mo-ex'));
   on('btn-save-ex', 'click', saveExerciseFromModal);
