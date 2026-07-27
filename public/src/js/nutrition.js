@@ -221,11 +221,11 @@ function macroLegendHTML(protein, carbs, fat) {
   const fPct = Math.round((fCal / total) * 100);
 
   const row = (color, label, grams, pct) => `
-    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sub);margin-top:3px">
+    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--sub);margin-top:3px">
       <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
-      <span style="width:64px;flex-shrink:0">${label}</span>
-      <span style="color:var(--text);font-weight:700">${grams}g</span>
-      <span style="color:var(--muted);margin-left:auto">${pct}%</span>
+      <span style="flex:1 1 auto;min-width:88px">${label}</span>
+      <span style="color:var(--text);font-weight:700;flex-shrink:0">${grams}g</span>
+      <span style="color:var(--muted);flex-shrink:0;width:34px;text-align:right">${pct}%</span>
     </div>`;
 
   return `<div style="margin-top:6px">
@@ -248,7 +248,7 @@ function mealRowHTML(ml) {
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:8px">
-        <div style="font-size:16px;font-weight:900;color:var(--orange);margin-bottom:6px">${ml.kcal}</div>
+        <div style="font-size:16px;font-weight:900;color:var(--orange);margin-bottom:6px">${ml.kcal} kcal</div>
         <div style="display:flex;gap:5px">
           <button class="edit-btn" data-edit-meal="${ml.id}">✏️</button>
           <button class="del-btn" data-del-meal="${ml.id}">✕</button>
@@ -628,4 +628,4 @@ export async function saveMealFromModal() {
   }
 }
 
-export function getMealsCache() { return mealsCache; }
+export function getMealsCache() { return mealsCache; 
