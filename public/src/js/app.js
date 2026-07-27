@@ -13,13 +13,13 @@ import { initOfflineBanner } from './offline.js';
 import { startOnboarding, obNext, obBack } from './onboarding.js';
 import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal, resetProgress } from './workout.js';
 import {
-  initNutritionModule, renderNutrition, saveMealFromModal, getMealsCache,
+  initNutritionModule, renderNutrition, saveMealFromModal,
   openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
   switchNutritionTab, openSlotManager, addNewSlot, saveSlots, saveBurnedCalories,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
-import { getWorkoutLogs, getTodayBurnedCalories, setTodayBurnedCalories, resetAllProgress } from './api.js';
+import { getWorkoutLogs, getTodayBurnedCalories, setTodayBurnedCalories, resetAllProgress, getMealsForToday } from './api.js';
 import { coachPlanDays } from './coachData.js';
 
 let currentUser = null;
@@ -146,7 +146,7 @@ function showAppScreen(screen) {
 
 async function renderHome() {
   if (!currentProfile) return;
-  const meals = getMealsCache();
+  const meals = await getMealsForToday(currentUser.id).catch(() => []);
   const t = mealTotals(meals);
   const m = {
     kcal: currentProfile.macro_kcal || 2000,
