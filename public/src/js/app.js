@@ -12,7 +12,7 @@ import { initCalendarModule, openCalendar, calendarPrevMonth, calendarNextMonth 
 import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js';
 import { initOfflineBanner } from './offline.js';
 import { startOnboarding, obNext, obBack } from './onboarding.js';
-import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal, resetProgress } from './workout.js';
+import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal, resetProgress, switchHistoryTab, historyCalPrevMonth, historyCalNextMonth } from './workout.js';
 import {
   initNutritionModule, renderNutrition, saveMealFromModal,
   openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
@@ -434,6 +434,13 @@ function wireStaticButtons() {
   on('btn-close-calendar-modal', 'click', () => closeMo('mo-calendar'));
   on('cal-prev-month', 'click', () => calendarPrevMonth());
   on('cal-next-month', 'click', () => calendarNextMonth());
+
+  // Verlauf: Liste/Kalender Toggle + Session-Detail
+  on('htab-list', 'click', () => switchHistoryTab('list'));
+  on('htab-calendar', 'click', () => switchHistoryTab('calendar'));
+  on('hcal-prev-month', 'click', () => historyCalPrevMonth());
+  on('hcal-next-month', 'click', () => historyCalNextMonth());
+  on('btn-close-session-detail', 'click', () => closeMo('mo-session-detail'));
 
   // Exercise Modal
   on('btn-close-ex-modal', 'click', () => closeMo('mo-ex'));
