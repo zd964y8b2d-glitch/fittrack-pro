@@ -8,6 +8,7 @@ import { supabase } from './supabaseClient.js';
 import * as Auth from './auth.js';
 import { getProfile } from './api.js';
 import { getCoachTip } from './coachData.js';
+import { initCalendarModule, openCalendar, calendarPrevMonth, calendarNextMonth } from './calendar.js';
 import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js';
 import { initOfflineBanner } from './offline.js';
 import { startOnboarding, obNext, obBack } from './onboarding.js';
@@ -91,6 +92,7 @@ async function loadUserAndContinue(user) {
 function initModules() {
   initWorkoutModule(currentUser, currentProfile);
   initNutritionModule(currentUser, currentProfile);
+  initCalendarModule(currentUser);
   initSettingsModule(currentUser, currentProfile, (updated) => {
     currentProfile = updated;
     renderHome();
@@ -138,10 +140,23 @@ async function renderApp() {
 
 function showAppScreen(screen) {
   showApp(screen);
+  if (screen === 'home') renderHome();
   if (screen === 'progress') renderProgression();
   if (screen === 'settings') renderSettings();
   if (screen === 'workout') renderWorkout();
   if (screen === 'nutrition') renderNutrition();
+}
+
+// Reagiert auf Klicks auf die Home-Kacheln (Kalorien/Workouts/Kalender)
+function handleHomeTileClick(action) {
+  if (action === 'kcal') {
+    showAppScreen('nutrition');
+  } else if (action === 'workouts') {
+    showAppScreen('workout');
+    wTab('mine');
+  } else if (action === 'calendar') {
+    openCalendar();
+  }
 }
 
 async function renderHome() {
@@ -161,10 +176,14 @@ async function renderHome() {
 
   const workoutLog = await getWorkoutLogs(currentUser.id, 100);
   document.getElementById('home-stats').innerHTML = [
-    { l: 'Kalorien', v: t.cal, u: 'kcal', c: 'var(--orange)' },
-    { l: 'Workouts', v: workoutLog.length, u: 'gesamt', c: 'var(--accent)' },
-    { l: 'Protein', v: t.protein, u: 'g', c: 'var(--green)' },
-  ].map((s) => `<div class="st"><div class="sv" style="color:${s.c}">${s.v}</div><div class="su">${s.u}</div><div class="sl">${s.l}</div></div>`).join('');
+    { l: 'Kalorien', v: t.cal, u: 'kcal', c: 'var(--orange)', action: 'kcal' },
+    { l: 'Workouts', v: workoutLog.length, u: 'gesamt', c: 'var(--accent)', action: 'workouts' },
+    { l: 'Kalender', v: '📅', u: 'öffnen', c: 'var(--green)', action: 'calendar' },
+  ].map((s) => `<div class="st" data-home-tile="${s.action}" style="cursor:pointer"><div class="sv" style="color:${s.c}">${s.v}</div><div class="su">${s.u}</div><div class="sl">${s.l}</div></div>`).join('');
+
+  document.querySelectorAll('#home-stats [data-home-tile]').forEach((el) => {
+    el.addEventListener('click', () => handleHomeTileClick(el.dataset.homeTile));
+  });
 
   document.getElementById('home-tip').innerHTML = `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-TIPP</div><div class="ct-txt">${getCoachTip(currentProfile.goals)}</div></div></div>`;
 
@@ -425,6 +444,11 @@ function wireStaticButtons() {
   });
   on('btn-close-eval-modal', 'click', () => window.closeWorkoutEvaluation());
   on('btn-close-eval', 'click', () => window.closeWorkoutEvaluation());
+
+  // Kalender-Modal
+  on('btn-close-calendar-modal', 'click', () => closeMo('mo-calendar'));
+  on('cal-prev-month', 'click', () => calendarPrevMonth());
+  on('cal-next-month', 'click', () => calendarNextMonth());
 
   // Exercise Modal
   on('btn-close-ex-modal', 'click', () => closeMo('mo-ex'));
