@@ -5,11 +5,11 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday } from './api.js';
+import { getMealsForToday, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getMealsBySlotHistory } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
-import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend } from './coachData.js';
+import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns } from './coachData.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -95,15 +95,25 @@ export async function saveBurnedCalories() {
 async function renderTrendInsights(dailyMacros) {
   const el = document.getElementById('nutr-insights');
   try {
-    const [history, weightHistory] = await Promise.all([
+    const [history, weightHistory, mealsBySlot] = await Promise.all([
       getMealHistoryAggregated(currentUser.id, 14),
       getWeightHistoryForTrend(currentUser.id, 21),
+      getMealsBySlotHistory(currentUser.id, 14),
     ]);
     const goal = currentProfile.goals?.[0] || 'health';
     const insights = analyzeNutritionTrend(history, weightHistory, dailyMacros, goal);
 
-    el.innerHTML = insights.length
-      ? insights.map((txt) => `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-ANALYSE</div><div class="ct-txt">${txt}</div></div></div>`).join('')
+    // Muster-Erkennung (Punkt 3): häufig gegessene Lebensmittel pro Slot +
+    // Abweichung vom Coach-Ziel dieses Slots.
+    const macroTargetsBySlot = {};
+    buildCoachNutritionPlan(dailyMacros, getSlots()).forEach((slot) => {
+      macroTargetsBySlot[slot.id] = slot;
+    });
+    const patterns = analyzeNutritionPatterns(mealsBySlot, macroTargetsBySlot);
+    const allInsights = [...insights, ...patterns.insights, ...patterns.suggestions.map((s) => s.text)];
+
+    el.innerHTML = allInsights.length
+      ? allInsights.map((txt) => `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-ANALYSE</div><div class="ct-txt">${txt}</div></div></div>`).join('')
       : '';
   } catch (e) {
     el.innerHTML = '';
