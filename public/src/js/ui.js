@@ -74,8 +74,15 @@ export function typeLbl(types) {
   return arr.map((v) => map[v] || v).join(' + ');
 }
 
+// Rundet auf 1 Nachkommastelle, um JS-Floating-Point-Artefakte wie
+// "38.400000000000006" bei der Summierung mehrerer Dezimalwerte zu
+// vermeiden. Die Genauigkeit bleibt für die Anzeige völlig ausreichend.
+function round1(v) {
+  return Math.round(v * 10) / 10;
+}
+
 export function mealTotals(meals) {
-  return (meals || []).reduce(
+  const totals = (meals || []).reduce(
     (a, m) => ({
       cal: a.cal + (m.kcal || 0),
       protein: a.protein + (m.protein_g || 0),
@@ -84,6 +91,12 @@ export function mealTotals(meals) {
     }),
     { cal: 0, protein: 0, carbs: 0, fat: 0 }
   );
+  return {
+    cal: Math.round(totals.cal),
+    protein: round1(totals.protein),
+    carbs: round1(totals.carbs),
+    fat: round1(totals.fat),
+  };
 }
 
 // Globaler Fehler-Handler für API-Aufrufe: zeigt Toast statt Konsolen-Stille.
