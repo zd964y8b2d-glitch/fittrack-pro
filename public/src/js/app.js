@@ -21,7 +21,6 @@ import {
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
 import { getWorkoutLogs, getTodayBurnedCalories, setTodayBurnedCalories, resetAllProgress, getMealsForToday } from './api.js';
-import { coachPlanDays } from './coachData.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -224,20 +223,6 @@ async function renderHome() {
     }
   });
 
-  const plan = coachPlanDays(currentProfile.goals, currentProfile.training_types, currentProfile.training_days);
-  const today = plan[workoutLog.length % plan.length] || plan[0];
-  document.getElementById('home-next-workout').innerHTML = `
-    <div class="row" style="margin-bottom:10px">
-      <div style="font-size:14px;font-weight:800">Nächste Einheit</div>
-      <span class="tag ta">Tag ${today?.key || 'A'}</span>
-    </div>
-    <div style="font-size:13px;color:var(--sub);margin-bottom:8px">${today?.focus || ''}</div>
-    ${(today?.exercises || []).slice(0, 3).map((e) => `
-      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:13px">${e.name}</span>
-        <span style="font-size:11px;color:var(--sub)">${e.sets}×${e.reps} ${e.bodyweight ? 'KG' : e.weight + 'kg'}</span>
-      </div>`).join('')}
-    ${(today?.exercises?.length || 0) > 3 ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:right">+${today.exercises.length - 3} weitere</div>` : ''}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
