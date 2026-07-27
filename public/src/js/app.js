@@ -8,16 +8,21 @@ import { supabase } from './supabaseClient.js';
 import * as Auth from './auth.js';
 import { getProfile } from './api.js';
 import { getCoachTip } from './coachData.js';
-import { initCalendarModule, openCalendar, calendarPrevMonth, calendarNextMonth } from './calendar.js';
+import { initCalendarModule, openCalendar, calendarPrevMonth, calendarNextMonth, getSelectedCalendarDay } from './calendar.js';
 import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js';
 import { initOfflineBanner } from './offline.js';
 import { startOnboarding, obNext, obBack } from './onboarding.js';
-import { initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal, resetProgress, switchHistoryTab, historyCalPrevMonth, historyCalNextMonth } from './workout.js';
+import {
+  initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal, resetProgress,
+  switchHistoryTab, historyCalPrevMonth, historyCalNextMonth, jumpToWorkoutLog,
+  openManualWorkoutModal, toggleManualWorkoutFields, onManualWorkoutDistanceInput, saveManualWorkout,
+} from './workout.js';
 import {
   initNutritionModule, renderNutrition, saveMealFromModal,
   openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
   switchNutritionTab, openSlotManager, addNewSlot, saveSlots, saveBurnedCalories,
+  showNutritionForDate,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
 import { getWorkoutLogs, getTodayBurnedCalories, setTodayBurnedCalories, resetAllProgress, getMealsForToday } from './api.js';
@@ -441,6 +446,32 @@ function wireStaticButtons() {
   on('hcal-prev-month', 'click', () => historyCalPrevMonth());
   on('hcal-next-month', 'click', () => historyCalNextMonth());
   on('btn-close-session-detail', 'click', () => closeMo('mo-session-detail'));
+
+  // Kalender-Tag-Detail: Sprung-Buttons zu Workout/Ernährung (dynamisch
+  // erzeugter Inhalt, daher Event-Delegation auf dem Container)
+  on('cal-day-detail-content', 'click', (e) => {
+    const jumpWorkoutBtn = e.target.closest('[data-jump-workout]');
+    if (jumpWorkoutBtn) { jumpToWorkoutLog(jumpWorkoutBtn.dataset.jumpWorkout); return; }
+    const jumpNutritionBtn = e.target.closest('[data-jump-nutrition]');
+    if (jumpNutritionBtn) {
+      closeMo('mo-cal-day-detail');
+      closeMo('mo-calendar');
+      showNutritionForDate(jumpNutritionBtn.dataset.jumpNutrition);
+    }
+  });
+  on('btn-close-cal-day-detail', 'click', () => closeMo('mo-cal-day-detail'));
+  on('btn-close-nutrition-review', 'click', () => closeMo('mo-nutrition-review'));
+
+  // Ernährung: Kalender-Button
+  on('btn-nutrition-calendar', 'click', () => openCalendar());
+
+  // Manuelles Training nachtragen
+  on('btn-add-manual-workout', 'click', () => openManualWorkoutModal());
+  on('btn-close-manual-workout', 'click', () => closeMo('mo-manual-workout'));
+  on('mw-type', 'change', () => toggleManualWorkoutFields());
+  on('mw-distance', 'input', () => onManualWorkoutDistanceInput());
+  on('mw-duration', 'input', () => toggleManualWorkoutFields());
+  on('btn-save-manual-workout', 'click', () => saveManualWorkout());
 
   // Exercise Modal
   on('btn-close-ex-modal', 'click', () => closeMo('mo-ex'));
