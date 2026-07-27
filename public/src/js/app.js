@@ -245,6 +245,25 @@ function on(id, event, handler) {
   el.addEventListener(event, handler);
 }
 
+// Zeigt einen drehenden Ladeindikator im Button während einer async-Aktion
+// (z.B. Anmelden) und stellt den Originaltext danach garantiert wieder her
+// (auch bei Fehlern) - gibt dem Nutzer sichtbares Feedback, dass der Klick
+// angekommen ist und etwas passiert.
+async function withButtonLoading(buttonId, action) {
+  const btn = document.getElementById(buttonId);
+  if (!btn) { await action(); return; }
+  const originalText = btn.innerHTML;
+  const originalDisabled = btn.disabled;
+  btn.disabled = true;
+  btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center"><span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:btnspin .7s linear infinite"></span>${originalText}</span>`;
+  try {
+    await action();
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = originalDisabled;
+  }
+}
+
 function wireStaticButtons() {
   // Auth Tabs
   document.querySelectorAll('.auth-tab').forEach((tab) => {
@@ -262,12 +281,14 @@ function wireStaticButtons() {
     const email = document.getElementById('l-email').value.trim().toLowerCase();
     const pass = document.getElementById('l-pass').value;
     if (!email || !pass) { authErr('Bitte E-Mail und Passwort eingeben.'); return; }
-    try {
-      const { user } = await Auth.login(email, pass);
-      await loadUserAndContinue(user);
-    } catch (err) {
-      authErr(translateAuthError(err));
-    }
+    await withButtonLoading('btn-login', async () => {
+      try {
+        const { user } = await Auth.login(email, pass);
+        await loadUserAndContinue(user);
+      } catch (err) {
+        authErr(translateAuthError(err));
+      }
+    });
   });
 
   // Registrierung
@@ -277,17 +298,19 @@ function wireStaticButtons() {
     const pass = document.getElementById('r-pass').value;
     if (!name || !email || !pass) { authErr('Bitte alle Felder ausfüllen.'); return; }
     if (pass.length < 6) { authErr('Passwort min. 6 Zeichen.'); return; }
-    try {
-      const { user, session } = await Auth.register(name, email, pass);
-      if (!session) {
-        // E-Mail-Bestätigung ist im Supabase-Projekt aktiviert
-        showToast('📧 Bitte bestätige deine E-Mail-Adresse, um fortzufahren.');
-        return;
+    await withButtonLoading('btn-register', async () => {
+      try {
+        const { user, session } = await Auth.register(name, email, pass);
+        if (!session) {
+          // E-Mail-Bestätigung ist im Supabase-Projekt aktiviert
+          showToast('📧 Bitte bestätige deine E-Mail-Adresse, um fortzufahren.');
+          return;
+        }
+        await loadUserAndContinue(user);
+      } catch (err) {
+        authErr(translateAuthError(err));
       }
-      await loadUserAndContinue(user);
-    } catch (err) {
-      authErr(translateAuthError(err));
-    }
+    });
   });
 
   // Passwort vergessen – Link unter dem Login-Formular
