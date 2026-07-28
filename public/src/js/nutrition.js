@@ -126,14 +126,9 @@ export async function saveWater() {
     assertOnline();
     waterEntry = await setWaterForToday(currentUser.id, ml, waterEntry?.id);
     updateWaterLitersDisplay(ml);
+    showToast('✅ Wasser gespeichert');
   } catch (e) {
-    // TEMPORÄRE DIAGNOSE (Punkt 1 aus dem Chat) - zeigt den echten Fehler
-    // als alert() an, der auf dem iPhone stehen bleibt und sich per
-    // Long-Press kopieren lässt (kein Mac/Web Inspector nötig). Sobald die
-    // Ursache gefunden ist: diesen alert() wieder entfernen und nur den
-    // stillen Toast darunter behalten.
     console.error('saveWater error:', e);
-    alert('Wasser-Fehler:\n' + (e?.message || JSON.stringify(e)));
     showToast('⚠️ Wasser speichern fehlgeschlagen');
   }
 }
