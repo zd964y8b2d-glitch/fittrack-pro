@@ -123,6 +123,16 @@ self.addEventListener('message', (event) => {
   // jedem Deploy automatisch setzt - keine zweite, manuell zu pflegende
   // Versionsangabe nötig.
   if (event.data === 'GET_VERSION') {
-    event.source.postMessage({ type: 'SW_VERSION', version: CACHE_VERSION });
+    const payload = { type: 'SW_VERSION', version: CACHE_VERSION };
+    // MessageChannel-Port bevorzugt (zuverlässiger als event.source, das in
+    // manchen Kontexten - insbesondere iOS-Standalone-Web-Apps vom
+    // Homescreen - nicht zuverlässig gesetzt ist und die Antwort dadurch
+    // verschluckt). Fällt zurück auf event.source, falls kein Port
+    // mitgeschickt wurde.
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage(payload);
+    } else if (event.source) {
+      event.source.postMessage(payload);
+    }
   }
 });
