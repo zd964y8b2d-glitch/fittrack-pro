@@ -15,6 +15,7 @@ import {
 } from './coachData.js';
 import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
+import { buildCalendarGrid, toLocalDateStr, MONTH_NAMES, GOAL_ICONS } from './calendar.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -952,17 +953,13 @@ export function switchHistoryTab(tab) {
   if (tab === 'calendar') renderHistoryCalendar();
 }
 
-function toLocalDateStr(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-const MONTH_NAMES_H = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
-
+// Nutzt die gemeinsame Grid-Engine aus calendar.js - keine eigene Kalender-
+// Logik mehr. Vorher war hier eine komplette Zweit-Implementierung des
+// Monatsrasters dupliziert (eigene toLocalDateStr, eigene Monatsnamen,
+// eigene Zell-Loop), die optisch fast, aber nicht ganz identisch zur
+// Übersicht war (nur generisches 🏋️ statt zielspezifischer Icons).
 function renderHistoryCalendar() {
-  document.getElementById('hcal-month-label').textContent = `${MONTH_NAMES_H[historyCalMonth]} ${historyCalYear}`;
+  document.getElementById('hcal-month-label').textContent = `${MONTH_NAMES[historyCalMonth]} ${historyCalYear}`;
 
   // Log-Einträge des sichtbaren Monats nach Tag gruppieren
   const byDay = {};
@@ -975,36 +972,18 @@ function renderHistoryCalendar() {
     }
   });
 
-  const firstDay = new Date(historyCalYear, historyCalMonth, 1);
-  const daysInMonth = new Date(historyCalYear, historyCalMonth + 1, 0).getDate();
-  let startWeekday = firstDay.getDay() - 1;
-  if (startWeekday < 0) startWeekday = 6;
-  const todayStr = toLocalDateStr(new Date());
-
-  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px">
-    ${['Mo','Di','Mi','Do','Fr','Sa','So'].map(d => `<div style="text-align:center;font-size:10px;color:var(--muted);font-weight:700">${d}</div>`).join('')}
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">`;
-
-  for (let i = 0; i < startWeekday; i++) html += `<div></div>`;
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateStr = toLocalDateStr(new Date(historyCalYear, historyCalMonth, day));
+  document.getElementById('hcal-grid').innerHTML = buildCalendarGrid(historyCalYear, historyCalMonth, (dateStr) => {
     const dayLogs = byDay[dateStr] || [];
-    const isToday = dateStr === todayStr;
-    html += `<div ${dayLogs.length ? `data-hcal-day="${dateStr}"` : ''} style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:${dayLogs.length ? 'pointer' : 'default'};background:${isToday ? 'var(--accentBg)' : 'var(--surface)'};border:1px solid ${isToday ? 'var(--accentBd)' : 'var(--border)'}">
-      <div style="font-size:11px;font-weight:${isToday ? '800' : '600'};color:${isToday ? 'var(--accent2)' : 'var(--text)'}">${day}</div>
-      ${dayLogs.length ? `<div style="font-size:10px">🏋️</div>` : ''}
-    </div>`;
-  }
-  html += `</div>`;
-  document.getElementById('hcal-grid').innerHTML = html;
+    if (!dayLogs.length) return { clickable: false };
+    const uniqueGoals = [...new Set(dayLogs.map((w) => w.log_goal || '_generic'))];
+    const icons = uniqueGoals.slice(0, 2).map((g) => GOAL_ICONS[g] || '🏋️');
+    return { icons, clickable: true };
+  });
 
-  document.querySelectorAll('#hcal-grid [data-hcal-day]').forEach((el) => {
+  document.querySelectorAll('#hcal-grid [data-cal-day]').forEach((el) => {
     el.addEventListener('click', () => {
-      const dayLogs = byDay[el.dataset.hcalDay];
-      if (dayLogs?.length === 1) openSessionDetail(dayLogs[0].id);
-      else if (dayLogs?.length > 1) openSessionDetail(dayLogs[0].id); // Erstes Workout des Tages öffnen
+      const dayLogs = byDay[el.dataset.calDay];
+      if (dayLogs?.length) openSessionDetail(dayLogs[0].id); // Erstes Workout des Tages öffnen
     });
   });
 }
