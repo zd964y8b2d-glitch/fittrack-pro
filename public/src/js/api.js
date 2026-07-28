@@ -241,6 +241,37 @@ export async function setBurnedCaloriesForToday(userId, kcal, source, existingId
   return data;
 }
 
+// Getrunkenes Wasser für heute (manuell erfasst, in ml). Analog zu den
+// verbrannten Kalorien: EIN Datensatz pro Tag (kind='water'), unabhängig
+// von einzelnen Mahlzeiten - da Wasser ein Tageswert ist, kein Pro-Mahlzeit-Wert.
+export async function getWaterForToday(userId) {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const { data, error } = await supabase
+    .from('body_measurements').select('*').eq('user_id', userId)
+    .eq('kind', 'water').gte('measured_at', startOfDay.toISOString())
+    .order('measured_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function setWaterForToday(userId, waterMl, existingId) {
+  if (existingId) {
+    const { data, error } = await supabase
+      .from('body_measurements')
+      .update({ water_ml: waterMl })
+      .eq('id', existingId).select().single();
+    if (error) throw error;
+    return data;
+  }
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .insert({ user_id: userId, kind: 'water', water_ml: waterMl, measured_at: new Date().toISOString() })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
 export async function addMeal(userId, meal) {
   const { data, error } = await supabase
     .from('body_measurements')
