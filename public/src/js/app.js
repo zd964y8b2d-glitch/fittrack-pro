@@ -173,8 +173,15 @@ function registerServiceWorker() {
         if (el) el.textContent = `Version ${event.data.version}`;
       }
     });
-    const requestVersion = () => navigator.serviceWorker.controller?.postMessage('GET_VERSION');
-    if (navigator.serviceWorker.controller) requestVersion();
+    // navigator.serviceWorker.ready garantiert einen aktiven Worker für
+    // diesen Scope - anders als .controller, das bei der ALLERERSTEN Seite
+    // nach einer Neuinstallation noch null sein kann (die Seite wird erst
+    // ab dem NÄCHSTEN Laden wirklich "kontrolliert"). So kommt die Version
+    // auch beim ersten Aufruf nach einem Update zuverlässig an.
+    const requestVersion = () => {
+      navigator.serviceWorker.ready.then((r) => r.active?.postMessage('GET_VERSION'));
+    };
+    requestVersion();
 
     // Statt eines stillen window.location.reload() zeigt eine neue Version
     // jetzt einen Banner, den der Nutzer selbst antippt - schützt laufende
