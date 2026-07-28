@@ -118,4 +118,11 @@ self.addEventListener('fetch', (event) => {
 // ── MESSAGE: erlaubt der App, einen sofortigen SW-Wechsel zu erzwingen ────
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
+  // Beantwortet eine Versions-Abfrage der Seite (für die Versionsanzeige
+  // im Profil-Tab) mit dem aktuellen CACHE_VERSION-Wert, den build.sh bei
+  // jedem Deploy automatisch setzt - keine zweite, manuell zu pflegende
+  // Versionsangabe nötig.
+  if (event.data === 'GET_VERSION') {
+    event.source.postMessage({ type: 'SW_VERSION', version: CACHE_VERSION });
+  }
 });
