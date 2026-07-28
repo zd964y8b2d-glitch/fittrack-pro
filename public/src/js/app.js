@@ -168,33 +168,46 @@ function registerServiceWorker() {
     // seiner CACHE_VERSION - dieselbe, die build.sh bei jedem Deploy
     // automatisch setzt. Keine zweite, manuell zu pflegende Versionsangabe.
     //
-    // TEMPORÄRE DIAGNOSE: schreibt Zwischenstände direkt in die Anzeige,
-    // damit sichtbar wird, an welcher Stelle es hakt, statt dass die Zeile
-    // einfach leer bleibt. Sobald die Ursache gefunden ist, auf die
-    // einfache Version (nur der else-Zweig ganz unten) zurückbauen.
+    // TEMPORÄRE DIAGNOSE: hängt jeden Schritt als EIGENE Zeile an (statt
+    // eine Zeile zu überschreiben), damit der komplette Ablauf sichtbar
+    // bleibt, auch wenn ein späterer Schritt fehlschlägt. Sobald die
+    // Ursache gefunden ist, auf die einfache Version zurückbauen.
     const versionEl = () => document.getElementById('app-version-display');
-    if (versionEl()) versionEl().textContent = '⏳ SW-Status: registriere...';
+    const logStep = (txt) => {
+      const el = versionEl();
+      if (!el) return;
+      const line = document.createElement('div');
+      line.textContent = txt;
+      el.appendChild(line);
+    };
+    if (versionEl()) versionEl().textContent = '';
+    logStep('1) registriere SW...');
+    logStep(`   controller vorhanden: ${navigator.serviceWorker.controller ? 'ja' : 'nein'}`);
 
     let versionReceived = false;
     navigator.serviceWorker.addEventListener('message', (event) => {
+      logStep(`4) Nachricht erhalten: ${JSON.stringify(event.data)}`);
       if (event.data?.type === 'SW_VERSION') {
         versionReceived = true;
-        if (versionEl()) versionEl().textContent = `Version ${event.data.version}`;
+        logStep(`✅ Version: ${event.data.version}`);
       }
     });
 
     const requestVersion = () => {
-      if (versionEl()) versionEl().textContent = '⏳ SW-Status: warte auf aktiven Worker...';
+      logStep('2) warte auf navigator.serviceWorker.ready...');
       navigator.serviceWorker.ready.then((r) => {
-        if (versionEl() && !versionReceived) {
-          versionEl().textContent = `⏳ SW-Status: aktiver Worker ${r.active ? 'gefunden' : 'FEHLT'}, sende Anfrage...`;
+        logStep(`3) ready aufgelöst - active vorhanden: ${r.active ? 'ja (state=' + r.active.state + ')' : 'FEHLT'}`);
+        try {
+          r.active?.postMessage('GET_VERSION');
+          logStep('   Nachricht "GET_VERSION" gesendet');
+        } catch (err) {
+          logStep(`❌ Fehler beim Senden: ${err.message}`);
         }
-        r.active?.postMessage('GET_VERSION');
         setTimeout(() => {
-          if (versionEl() && !versionReceived) {
-            versionEl().textContent = '⚠️ SW-Status: keine Antwort nach 4s erhalten';
-          }
+          if (!versionReceived) logStep('⚠️ Keine Antwort nach 4s erhalten');
         }, 4000);
+      }).catch((err) => {
+        logStep(`❌ ready wurde abgelehnt: ${err.message}`);
       });
     };
     requestVersion();
