@@ -12,7 +12,7 @@ import {
   initCalendarModule, openCalendar, calendarPrevMonth, calendarNextMonth, getSelectedCalendarDay,
   openDatePicker, datePickerPrevMonth, datePickerNextMonth, datePickerReset, datePickerConfirm, MONTH_NAMES,
 } from './calendar.js';
-import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js';
+import { ringHTML, pbar, showPage, showApp, showToast, showUpdateBanner, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js';
 import { initOfflineBanner } from './offline.js';
 import { startOnboarding, obNext, obBack } from './onboarding.js';
 import {
@@ -128,9 +128,10 @@ function registerServiceWorker() {
     // im schlechtesten Fall gar nicht erkannt werden, obwohl der Server
     // längst eine neue Version ausliefert.
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
-      // Sobald eine neue SW-Version bereitsteht, sofort aktivieren und
-      // die Seite neu laden -> Nutzer bekommt automatisch die neueste
-      // Version ohne manuelles Update (siehe Anforderung 10).
+      // Sobald eine neue SW-Version bereitsteht, im Hintergrund aktivieren.
+      // Der Nutzer bekommt das NICHT sofort als Reload zu spüren - das
+      // übernimmt jetzt der Update-Banner (siehe controllerchange unten),
+      // damit eine laufende Eingabe nicht ungefragt verworfen wird.
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         newWorker.addEventListener('statechange', () => {
@@ -148,12 +149,42 @@ function registerServiceWorker() {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') reg.update().catch(() => {});
       });
+
+      // WICHTIGER ZUSATZ für vom Homescreen gestartete Standalone-Apps:
+      // iOS beendet solche Apps beim Verlassen meist nicht wirklich,
+      // sondern friert die komplette Seite ein (Bfcache) und "weckt" sie
+      // beim Wiederöffnen nur auf - JavaScript läuft einfach pausiert
+      // weiter, es findet keine echte Neu-Navigation statt.
+      // 'visibilitychange' feuert dabei nicht zuverlässig; das dafür
+      // vorgesehene Signal ist 'pageshow' mit persisted:true. Das war der
+      // eigentliche Grund, warum bisher das Homescreen-Icon manuell
+      // gelöscht und neu angelegt werden musste, um ein Update zu bekommen.
+      window.addEventListener('pageshow', (event) => {
+        if (event.persisted) reg.update().catch(() => {});
+      });
     });
+
+    // Versionsanzeige (Profil-Tab): fragt den aktiven Service Worker nach
+    // seiner CACHE_VERSION - dieselbe, die build.sh bei jedem Deploy
+    // automatisch setzt. Keine zweite, manuell zu pflegende Versionsangabe.
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'SW_VERSION') {
+        const el = document.getElementById('app-version-display');
+        if (el) el.textContent = `Version ${event.data.version}`;
+      }
+    });
+    const requestVersion = () => navigator.serviceWorker.controller?.postMessage('GET_VERSION');
+    if (navigator.serviceWorker.controller) requestVersion();
+
+    // Statt eines stillen window.location.reload() zeigt eine neue Version
+    // jetzt einen Banner, den der Nutzer selbst antippt - schützt laufende
+    // Eingaben (z.B. Sätze eintragen) vor ungefragtem Verwerfen.
     let refreshed = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
+      requestVersion();
       if (refreshed) return;
       refreshed = true;
-      window.location.reload();
+      showUpdateBanner(() => window.location.reload());
     });
   });
 }
