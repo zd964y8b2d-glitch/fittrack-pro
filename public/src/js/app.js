@@ -26,6 +26,7 @@ import {
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
   switchNutritionTab, openSlotManager, addNewSlot, saveSlots, saveBurnedCalories,
   stepWater, saveWater,
+  switchMealListTab, nutritionCalPrevMonth, nutritionCalNextMonth,
   showNutritionForDate,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
@@ -501,8 +502,11 @@ function wireStaticButtons() {
   on('btn-close-cal-day-detail', 'click', () => closeMo('mo-cal-day-detail'));
   on('btn-close-nutrition-review', 'click', () => closeMo('mo-nutrition-review'));
 
-  // Ernährung: Kalender-Button
-  on('btn-nutrition-calendar', 'click', () => openCalendar());
+  // Ernährung: Liste/Kalender-Toggle (identisch zu Workout > Verlauf)
+  on('ntab2-list', 'click', () => switchMealListTab('list'));
+  on('ntab2-calendar', 'click', () => switchMealListTab('calendar'));
+  on('ncal-prev-month', 'click', () => nutritionCalPrevMonth());
+  on('ncal-next-month', 'click', () => nutritionCalNextMonth());
 
   // Manuelles Training nachtragen
   on('btn-add-manual-workout', 'click', () => { openManualWorkoutModal(); syncManualWorkoutDateDisplay(); });
