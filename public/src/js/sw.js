@@ -12,11 +12,15 @@
 //     Cache (siehe Anforderung 4 – Offline-fähige Grundfunktionen).
 //   - Supabase-API-Calls werden NIE gecacht – Trainings-/Ernährungsdaten
 //     müssen immer live vom Server kommen.
-//   - __CACHE_VERSION__ wird von build.sh bei jedem Deploy automatisch neu
-//     gesetzt → alte Caches werden im "activate"-Schritt gelöscht.
+//   - CACHE_VERSION ist jetzt ein FEST EINGETRAGENER String, keine
+//     build.sh-Platzhalter-Ersetzung mehr (die hat nie funktioniert - der
+//     Platzhalter kam unverändert im Live-Code an). Bei jeder Dateilieferung
+//     bitte diesen Wert von Hand erhöhen, damit alte Caches im
+//     "activate"-Schritt zuverlässig gelöscht werden und die Versionsanzeige
+//     im Profil-Tab einen echten, aussagekräftigen Wert zeigt.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = '__CACHE_VERSION__';
+const CACHE_VERSION = '2026-07-28.1';
 const CACHE_NAME = `fittrack-shell-${CACHE_VERSION}`;
 
 const APP_SHELL = [
