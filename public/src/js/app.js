@@ -19,6 +19,7 @@ import {
   initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal, resetProgress,
   switchHistoryTab, historyCalPrevMonth, historyCalNextMonth, jumpToWorkoutLog,
   openManualWorkoutModal, toggleManualWorkoutFields, onManualWorkoutDistanceInput, saveManualWorkout,
+  updateProfileRef as updateWorkoutProfileRef,
 } from './workout.js';
 import {
   initNutritionModule, renderNutrition, saveMealFromModal,
@@ -28,6 +29,7 @@ import {
   stepWater, saveWater,
   switchMealListTab, nutritionCalPrevMonth, nutritionCalNextMonth,
   showNutritionForDate,
+  updateProfileRef as updateNutritionProfileRef,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
 import { getWorkoutLogs, getTodayBurnedCalories, setTodayBurnedCalories, resetAllProgress, getMealsForToday } from './api.js';
@@ -104,6 +106,12 @@ function initModules() {
   initCalendarModule(currentUser);
   initSettingsModule(currentUser, currentProfile, (updated) => {
     currentProfile = updated;
+    // Ohne diese beiden Aufrufe blieben workout.js und nutrition.js auf dem
+    // Profilstand vom App-Start "eingefroren" - Änderungen an Zielen/Makros
+    // in den Einstellungen zeigten sich dann zwar in Home und Profil, aber
+    // NICHT in Ernährung (falsches Kalorienziel) oder im Coach-Plan.
+    updateWorkoutProfileRef(updated);
+    updateNutritionProfileRef(updated);
     renderHome();
   });
 }
