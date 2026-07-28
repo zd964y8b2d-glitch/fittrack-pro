@@ -16,7 +16,8 @@
 //     gesetzt → alte Caches werden im "activate"-Schritt gelöscht.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = '__CACHE_VERSION__'; const CACHE_NAME = `fittrack-shell-${CACHE_VERSION}`;
+const CACHE_VERSION = '__CACHE_VERSION__';
+const CACHE_NAME = `fittrack-shell-${CACHE_VERSION}`;
 
 const APP_SHELL = [
   '/',
@@ -39,15 +40,31 @@ const APP_SHELL = [
   '/icons/icon-512.png',
 ];
 
-// ── INSTALL: App-Shell vorab cachen (als Offline-Fallback) ────────────────── self.addEventListener('install', (event) => {
+// ── INSTALL: App-Shell vorab cachen (als Offline-Fallback) ──────────────────
+// cache.addAll() würde die HTTP-Cache-Header des Hosters (Cloudflare Pages)
+// respektieren - liegt dort ein langes max-age auf den Assets, könnten darüber
+// VERALTETE Dateien in den neuen Versions-Cache wandern, obwohl der Service
+// Worker selbst schon korrekt eine neue Version installiert. Jede Datei wird
+// daher einzeln mit { cache: 'reload' } geholt, was den HTTP-Cache des
+// Browsers für diesen Request explizit umgeht und garantiert frische Bytes
+// in jede neue Cache-Version einträgt.
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .catch((err) => console.warn('SW install cache.addAll failed:', err))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        APP_SHELL.map((url) =>
+          fetch(url, { cache: 'reload' })
+            .then((res) => { if (res.ok) return cache.put(url, res); })
+            .catch((err) => console.warn(`SW install: ${url} konnte nicht geladen werden:`, err))
+        )
+      )
+    )
   );
-  self.skipWaiting(); // Sofort aktivieren, nicht auf Tab-Schließen warten });
+  self.skipWaiting(); // Sofort aktivieren, nicht auf Tab-Schließen warten
+});
 
-// ── ACTIVATE: alte Caches aus früheren Versionen löschen ─────────────────── self.addEventListener('activate', (event) => {
+// ── ACTIVATE: alte Caches aus früheren Versionen löschen ───────────────────
+self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
@@ -57,9 +74,11 @@ const APP_SHELL = [
       )
     )
   );
-  self.clients.claim(); // Sofort alle offenen Tabs übernehmen });
+  self.clients.claim(); // Sofort alle offenen Tabs übernehmen
+});
 
-// ── FETCH: Network-First mit Cache-Fallback ──────────────────────────────── self.addEventListener('fetch', (event) => {
+// ── FETCH: Network-First mit Cache-Fallback ────────────────────────────────
+self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // Supabase-API & Auth-Calls: NIE cachen, immer live ans Netz.
@@ -96,5 +115,7 @@ const APP_SHELL = [
   );
 });
 
-// ── MESSAGE: erlaubt der App, einen sofortigen SW-Wechsel zu erzwingen ──── self.addEventListener('message', (event) => {
-  if (event.data === 'SKIP_WAITING') self.skipWaiting(); });
+// ── MESSAGE: erlaubt der App, einen sofortigen SW-Wechsel zu erzwingen ────
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
+});
