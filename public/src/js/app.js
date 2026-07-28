@@ -164,69 +164,32 @@ function registerServiceWorker() {
       });
     });
 
-    // Versionsanzeige (Profil-Tab): fragt den aktiven Service Worker nach
-    // seiner CACHE_VERSION - dieselbe, die build.sh bei jedem Deploy
-    // automatisch setzt. Keine zweite, manuell zu pflegende Versionsangabe.
-    //
-    // TEMPORÄRE DIAGNOSE: hängt jeden Schritt als EIGENE Zeile an (statt
-    // eine Zeile zu überschreiben), damit der komplette Ablauf sichtbar
-    // bleibt, auch wenn ein späterer Schritt fehlschlägt. Sobald die
-    // Ursache gefunden ist, auf die einfache Version zurückbauen.
-    const versionEl = () => document.getElementById('app-version-display');
-    const logStep = (txt) => {
-      const el = versionEl();
-      if (!el) return;
-      const line = document.createElement('div');
-      line.textContent = txt;
-      el.appendChild(line);
+    // Versionsanzeige (Profil-Tab): liest die CACHE_VERSION direkt aus dem
+    // Text von sw.js aus - ein ganz normaler Datei-Abruf, KEINE Service-
+    // Worker-Kommunikation mehr. Die Diagnose hat gezeigt, dass Registrierung/
+    // Ready/Aktivierung zuverlässig laufen, aber die Nachrichten-Antwort
+    // (sowohl über event.source als auch über MessageChannel) nie ankam -
+    // vermutlich eine Eigenheit von iOS-Standalone-Web-Apps. Diese Methode
+    // umgeht das Problem komplett: sw.js hat bereits "Cache-Control: no-cache"
+    // (siehe _headers), der Abruf liefert also garantiert den aktuellen Stand.
+    const updateVersionDisplay = () => {
+      fetch('/sw.js', { cache: 'no-store' })
+        .then((res) => res.text())
+        .then((text) => {
+          const match = text.match(/CACHE_VERSION\s*=\s*['"]([^'"]+)['"]/);
+          const el = document.getElementById('app-version-display');
+          if (el) el.textContent = match ? `Version ${match[1]}` : '';
+        })
+        .catch(() => {});
     };
-    if (versionEl()) versionEl().textContent = '';
-    logStep('1) registriere SW...');
-    logStep(`   controller vorhanden: ${navigator.serviceWorker.controller ? 'ja' : 'nein'}`);
-
-    let versionReceived = false;
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      logStep(`4) Nachricht erhalten: ${JSON.stringify(event.data)}`);
-      if (event.data?.type === 'SW_VERSION') {
-        versionReceived = true;
-        logStep(`✅ Version: ${event.data.version}`);
-      }
-    });
-
-    const requestVersion = () => {
-      logStep('2) warte auf navigator.serviceWorker.ready...');
-      navigator.serviceWorker.ready.then((r) => {
-        logStep(`3) ready aufgelöst - active vorhanden: ${r.active ? 'ja (state=' + r.active.state + ')' : 'FEHLT'}`);
-        if (!r.active) return;
-        try {
-          // MessageChannel statt event.source-Broadcast: zuverlässiger für
-          // eine direkte 1:1-Antwort, vor allem in iOS-Standalone-Web-Apps.
-          const channel = new MessageChannel();
-          channel.port1.onmessage = (event) => {
-            versionReceived = true;
-            logStep(`4) Antwort erhalten: ${JSON.stringify(event.data)}`);
-            if (event.data?.type === 'SW_VERSION') logStep(`✅ Version: ${event.data.version}`);
-          };
-          r.active.postMessage('GET_VERSION', [channel.port2]);
-          logStep('   Nachricht "GET_VERSION" über MessageChannel gesendet');
-        } catch (err) {
-          logStep(`❌ Fehler beim Senden: ${err.message}`);
-        }
-        setTimeout(() => {
-          if (!versionReceived) logStep('⚠️ Keine Antwort nach 4s erhalten');
-        }, 4000);
-      }).catch((err) => {
-        logStep(`❌ ready wurde abgelehnt: ${err.message}`);
-      });
-    };
-    requestVersion();
+    updateVersionDisplay();
 
     // Statt eines stillen window.location.reload() zeigt eine neue Version
     // jetzt einen Banner, den der Nutzer selbst antippt - schützt laufende
     // Eingaben (z.B. Sätze eintragen) vor ungefragtem Verwerfen.
     let refreshed = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      requestVersion();
+      updateVersionDisplay();
       if (refreshed) return;
       refreshed = true;
       showUpdateBanner(() => window.location.reload());
