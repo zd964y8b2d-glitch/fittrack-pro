@@ -22,7 +22,7 @@ import {
   updateProfileRef as updateWorkoutProfileRef,
 } from './workout.js';
 import {
-  initNutritionModule, renderNutrition, saveMealFromModal,
+  initNutritionModule, renderNutrition, saveMealFromModal, toggleSaveGenericGrams,
   openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
   switchNutritionTab, openSlotManager, addNewSlot, saveSlots, saveBurnedCalories,
@@ -483,6 +483,7 @@ function wireStaticButtons() {
     await saveMealFromModal();
     await renderHome();
   });
+  on('mn-save-generic', 'change', () => toggleSaveGenericGrams());
 
   // Meal Modal - Tabs (Suche / Scannen / Manuell)
   ['search', 'scan', 'manual'].forEach((t) => {
