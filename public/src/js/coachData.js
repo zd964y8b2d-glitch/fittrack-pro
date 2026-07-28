@@ -672,13 +672,18 @@ export function analyzeExercisePatterns(planExercises, workoutSnapshots) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // mealsBySlotHistory: { slotId: [{ name, kcal, protein, carbs, fat }, ...] }
-// über die letzten N Tage. macroTargetForSlot: { kcal, protein, carbs, fat }
-// aus dem Coach-Ernährungsplan für diesen Slot.
-export function analyzeNutritionPatterns(mealsBySlotHistory, macroTargetsBySlot) {
+// über die letzten N Tage. Liefert NUR Verhaltens-Muster (z.B. häufig
+// gegessene Lebensmittel) je Slot. Eine Bewertung gegen das Kalorienziel
+// findet bewusst NICHT mehr hier (pro Slot) statt, sondern zentral und
+// EINMAL pro Tag in analyzeNutritionTrend() weiter oben. Vorher erzeugte
+// diese Funktion zusätzlich pro Slot eine eigene Ziel-Abweichungs-Meldung
+// ("liegt im Schnitt X kcal unter dem Coach-Ziel") - bei mehreren
+// auffälligen Slots führte das zu mehreren, leicht widersprüchlichen
+// Coach-Karten gleichzeitig, statt einer klaren Tages-Aussage.
+export function analyzeNutritionPatterns(mealsBySlotHistory) {
   const insights = [];
-  const suggestions = [];
 
-  Object.entries(mealsBySlotHistory).forEach(([slotId, meals]) => {
+  Object.values(mealsBySlotHistory).forEach((meals) => {
     if (meals.length < 3) return; // Zu wenig Daten für belastbare Muster
 
     const nameCount = {};
@@ -692,23 +697,7 @@ export function analyzeNutritionPatterns(mealsBySlotHistory, macroTargetsBySlot)
     if (topFood && topFood[1] >= 3) {
       insights.push(`Du isst "${topFood[0]}" häufig (${topFood[1]}×) in diesem Slot – das scheint sich in deine Routine eingespielt zu haben.`);
     }
-
-    // Vorschlag: die am häufigsten kombinierten Lebensmittel, die zusammen
-    // am nächsten an das Makro-Ziel dieses Slots herankommen.
-    const target = macroTargetsBySlot[slotId];
-    if (target) {
-      const avgKcal = meals.reduce((s, m) => s + m.kcal, 0) / meals.length;
-      const diff = avgKcal - target.kcal;
-      if (Math.abs(diff) > target.kcal * 0.25) {
-        suggestions.push({
-          slotId,
-          text: diff > 0
-            ? `Deine bisherigen Mahlzeiten in diesem Slot liegen im Schnitt ${Math.round(diff)} kcal über dem Coach-Ziel (${target.kcal} kcal).`
-            : `Deine bisherigen Mahlzeiten in diesem Slot liegen im Schnitt ${Math.round(Math.abs(diff))} kcal unter dem Coach-Ziel (${target.kcal} kcal).`,
-        });
-      }
-    }
   });
 
-  return { insights, suggestions };
+  return { insights };
 }
