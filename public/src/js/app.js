@@ -197,9 +197,18 @@ function registerServiceWorker() {
       logStep('2) warte auf navigator.serviceWorker.ready...');
       navigator.serviceWorker.ready.then((r) => {
         logStep(`3) ready aufgelöst - active vorhanden: ${r.active ? 'ja (state=' + r.active.state + ')' : 'FEHLT'}`);
+        if (!r.active) return;
         try {
-          r.active?.postMessage('GET_VERSION');
-          logStep('   Nachricht "GET_VERSION" gesendet');
+          // MessageChannel statt event.source-Broadcast: zuverlässiger für
+          // eine direkte 1:1-Antwort, vor allem in iOS-Standalone-Web-Apps.
+          const channel = new MessageChannel();
+          channel.port1.onmessage = (event) => {
+            versionReceived = true;
+            logStep(`4) Antwort erhalten: ${JSON.stringify(event.data)}`);
+            if (event.data?.type === 'SW_VERSION') logStep(`✅ Version: ${event.data.version}`);
+          };
+          r.active.postMessage('GET_VERSION', [channel.port2]);
+          logStep('   Nachricht "GET_VERSION" über MessageChannel gesendet');
         } catch (err) {
           logStep(`❌ Fehler beim Senden: ${err.message}`);
         }
