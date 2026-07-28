@@ -38,6 +38,24 @@ export function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
+// Persistenter, tappbarer Banner am oberen Bildschirmrand - im Gegensatz
+// zum Toast blendet er sich NICHT automatisch aus. Wird angezeigt, sobald
+// eine neue App-Version bereitsteht; der Reload passiert erst, wenn der
+// Nutzer aktiv tippt, statt mitten in einer Eingabe (z.B. während des
+// Satz-Eintragens) ungefragt neu zu laden.
+export function showUpdateBanner(onTap) {
+  let b = document.getElementById('update-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'update-banner';
+    b.className = 'update-banner';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = '🔄 Neue Version verfügbar – zum Aktualisieren tippen';
+  b.onclick = onTap;
+  requestAnimationFrame(() => b.classList.add('show'));
+}
+
 export function openMo(id) { document.getElementById(id)?.classList.add('open'); }
 export function closeMo(id) { document.getElementById(id)?.classList.remove('open'); }
 
