@@ -330,6 +330,12 @@
       <input id="food-search-brand-input" class="oi" type="text" placeholder="Hersteller (optional, z.B. Danone)" autocomplete="off">
     </div>
     <div id="food-search-status" style="font-size:12px;color:var(--sub);padding:4px 2px 8px;display:none"></div>
+    <!-- Häufig verwendete Lebensmittel (letzte 30 Tage) - direkt sichtbar
+         beim Öffnen der Suche, verschwindet sobald getippt wird. -->
+    <div id="food-frequent-wrap" style="display:none">
+      <div class="slbl" style="margin-bottom:8px">Häufig verwendet</div>
+      <div id="food-frequent-list"></div>
+    </div>
     <div id="food-search-results"></div>
   </div>
 
