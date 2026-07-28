@@ -161,8 +161,8 @@
     <div class="pad">
       <div class="tab-bar">
         <button class="tab-item active" id="wtab-active">Aktiv</button>
-        <button class="tab-item" id="wtab-coach">Coach-Plan</button>
         <button class="tab-item" id="wtab-mine">Mein Plan</button>
+        <button class="tab-item" id="wtab-coach">Coach-Plan</button>
         <button class="tab-item" id="wtab-history">Verlauf</button>
       </div>
       <div id="wv-active"></div>
@@ -249,41 +249,32 @@
       <div class="tab-bar">
         <button class="tab-item active" id="ntab-today" data-ntab="today">Heute</button>
         <button class="tab-item" id="ntab-coach" data-ntab="coach">Coach-Plan</button>
+        <button class="tab-item" id="ntab-calendar" data-ntab="calendar">Kalender</button>
       </div>
 
       <div id="nv-today">
-        <!-- Liste/Kalender-Toggle - bewusst identisch zu Workout > Verlauf
-             aufgebaut (gleiche Klassen, gleiches Verhalten), kein Icon-Button
-             mehr. Der Kalender ist eingebettet statt als Modal - ein Tageklick
-             öffnet direkt (und einmalig) die Tagesansicht, ohne Modal-über-
-             Modal-Verschachtelung. -->
-        <div class="row" style="margin-bottom:12px">
-          <div class="tab-bar" style="flex:1;margin-bottom:0">
-            <button class="tab-item active" id="ntab2-list" data-ntab2="list">Liste</button>
-            <button class="tab-item" id="ntab2-calendar" data-ntab2="calendar">Kalender</button>
+        <div class="row" style="margin-bottom:9px">
+          <div class="slbl" style="margin-bottom:0">Mahlzeiten</div>
+          <div style="display:flex;gap:6px">
+            <button class="tag" style="cursor:pointer;border:none;background:var(--surface);color:var(--sub)" id="btn-manage-slots">⚙️</button>
+            <button class="tag ta" style="cursor:pointer;border:none" id="btn-open-meal-modal">+ Mahlzeit</button>
           </div>
         </div>
-        <div id="nv-list-view">
-          <div class="row" style="margin-bottom:9px">
-            <div class="slbl" style="margin-bottom:0">Mahlzeiten</div>
-            <div style="display:flex;gap:6px">
-              <button class="tag" style="cursor:pointer;border:none;background:var(--surface);color:var(--sub)" id="btn-manage-slots">⚙️</button>
-              <button class="tag ta" style="cursor:pointer;border:none" id="btn-open-meal-modal">+ Mahlzeit</button>
-            </div>
-          </div>
-          <div id="meal-list"></div>
-        </div>
-        <div id="nv-calendar-view" style="display:none">
-          <div class="row" style="margin-bottom:14px">
-            <button id="ncal-prev-month" style="background:var(--surface);border:none;border-radius:10px;width:36px;height:36px;color:var(--text);font-size:16px;cursor:pointer">‹</button>
-            <div id="ncal-month-label" style="font-size:15px;font-weight:800;flex:1;text-align:center"></div>
-            <button id="ncal-next-month" style="background:var(--surface);border:none;border-radius:10px;width:36px;height:36px;color:var(--text);font-size:16px;cursor:pointer">›</button>
-          </div>
-          <div id="ncal-grid"></div>
-        </div>
+        <div id="meal-list"></div>
       </div>
 
       <div id="nv-coach" style="display:none"></div>
+
+      <!-- Eingebetteter Kalender, jetzt gleichrangiger Tab statt in "Heute"
+           verschachtelt (das duplizierte vorher "Heute" und "Liste"). -->
+      <div id="nv-calendar" style="display:none">
+        <div class="row" style="margin-bottom:14px">
+          <button id="ncal-prev-month" style="background:var(--surface);border:none;border-radius:10px;width:36px;height:36px;color:var(--text);font-size:16px;cursor:pointer">‹</button>
+          <div id="ncal-month-label" style="font-size:15px;font-weight:800;flex:1;text-align:center"></div>
+          <button id="ncal-next-month" style="background:var(--surface);border:none;border-radius:10px;width:36px;height:36px;color:var(--text);font-size:16px;cursor:pointer">›</button>
+        </div>
+        <div id="ncal-grid"></div>
+      </div>
     </div>
   </div>
 
@@ -583,14 +574,6 @@
 </div>
 </div>
 
-<div class="mo" id="mo-cal-day-detail">
-<div class="ms">
-  <div class="mh"></div><button class="mc" id="btn-close-cal-day-detail">✕</button>
-  <div class="mt">Tages-Details</div>
-  <div id="cal-day-detail-content"></div>
-</div>
-</div>
-
 <div class="mo" id="mo-calendar">
 <div class="ms">
   <div class="mh"></div><button class="mc" id="btn-close-calendar-modal">✕</button>
@@ -609,6 +592,18 @@
     <span style="font-size:11px;color:var(--sub)">❤️ Gesundheit</span>
     <span style="font-size:11px;color:var(--sub)">🥗 Ernährung getrackt</span>
   </div>
+</div>
+</div>
+
+<!-- Kalender-Tag-Detail: MUSS im DOM nach mo-calendar stehen, damit es bei
+     gleichem z-index (siehe .mo Klasse) korrekt darüber liegt, statt vom
+     Kalender-Modal verdeckt zu werden (war die Ursache des "verdeckten
+     Popups" auf dem Start-Bildschirm). -->
+<div class="mo" id="mo-cal-day-detail">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-cal-day-detail">✕</button>
+  <div class="mt">Tages-Details</div>
+  <div id="cal-day-detail-content"></div>
 </div>
 </div>
 
