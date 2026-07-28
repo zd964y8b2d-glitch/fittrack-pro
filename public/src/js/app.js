@@ -32,7 +32,7 @@ import {
   updateProfileRef as updateNutritionProfileRef,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
-import { getWorkoutLogs, getTodayBurnedCalories, setTodayBurnedCalories, resetAllProgress, getMealsForToday } from './api.js';
+import { getWorkoutLogs, getBurnedCaloriesForToday, setBurnedCaloriesForToday, resetAllProgress, getMealsForToday } from './api.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -218,8 +218,13 @@ async function renderHome() {
 
   document.getElementById('home-tip').innerHTML = `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-TIPP</div><div class="ct-txt">${getCoachTip(currentProfile.goals)}</div></div></div>`;
 
-  const burnedEntry = await getTodayBurnedCalories(currentUser.id).catch(() => null);
-  const burnedKcal = burnedEntry?.kcal || 0;
+  // Nutzt jetzt dieselbe Datenquelle wie die "Verbrannte Kalorien"-Karte im
+  // Ernährungs-Tab (body_measurements/kind='burned'), statt einer zweiten,
+  // separaten Tabelle. Vorher zeigten Home und Ernährung potenziell
+  // unterschiedliche Werte und Home nutzte eine Tabelle, die es in der
+  // Datenbank so nicht gab - daher schlug das Speichern dort fehl.
+  const burnedEntry = await getBurnedCaloriesForToday(currentUser.id).catch(() => null);
+  const burnedKcal = burnedEntry?.burned_kcal || 0;
   const netCal = Math.max(0, t.cal - burnedKcal);
   const netPct = Math.min((netCal / m.kcal) * 100, 100);
 
@@ -234,23 +239,28 @@ async function renderHome() {
     ${pbar('Kohlenhydrate ' + t.carbs + 'g', t.carbs, m.carbs, 'var(--green)')}
     ${pbar('Fett ' + t.fat + 'g', t.fat, m.fat, 'var(--orange)')}`;
 
+  // Eindeutige IDs (home-*) statt der bisherigen "burned-kcal-input"/
+  // "btn-save-burned" - diese kollidierten mit den gleichnamigen, statischen
+  // Feldern im Ernährungs-Tab (index.html), wodurch getElementById() je nach
+  // Render-Reihenfolge das falsche Feld treffen konnte.
   document.getElementById('home-burned').innerHTML = `
     <div class="row" style="margin-bottom:8px">
       <div style="font-size:14px;font-weight:800">🔥 Verbrannte Kalorien heute</div>
     </div>
     <div class="row" style="gap:8px">
-      <input id="burned-kcal-input" class="oi" type="number" inputmode="numeric" placeholder="0" value="${burnedKcal || ''}" style="flex:1">
-      <button id="btn-save-burned" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:11px;padding:11px 16px;color:var(--accent2);font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0">Speichern</button>
+      <input id="home-burned-kcal-input" class="oi" type="number" inputmode="numeric" placeholder="0" value="${burnedKcal || ''}" style="flex:1;text-align:center;font-weight:800">
+      <button id="home-btn-save-burned" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:11px;width:44px;height:44px;color:var(--accent2);font-size:18px;font-weight:700;cursor:pointer;flex-shrink:0">✓</button>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:6px">Trage Kalorien aus Apple Health, Google Fit oder deiner Fitness-Uhr manuell ein.</div>`;
 
-  document.getElementById('btn-save-burned').addEventListener('click', async () => {
-    const val = parseInt(document.getElementById('burned-kcal-input').value) || 0;
+  document.getElementById('home-btn-save-burned').addEventListener('click', async () => {
+    const val = Math.max(0, parseInt(document.getElementById('home-burned-kcal-input').value) || 0);
     try {
-      await setTodayBurnedCalories(currentUser.id, val);
+      await setBurnedCaloriesForToday(currentUser.id, val, burnedEntry?.burned_source || 'Manuell', burnedEntry?.id);
       showToast('✅ Verbrannte Kalorien gespeichert');
       await renderHome();
     } catch (e) {
+      console.error('home saveBurnedCalories error:', e);
       showToast('⚠️ Speichern fehlgeschlagen');
     }
   });
