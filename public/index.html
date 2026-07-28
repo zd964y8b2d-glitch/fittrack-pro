@@ -228,6 +228,22 @@
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:14px">
+        <div class="row" style="margin-bottom:10px">
+          <div>
+            <div style="font-size:13px;font-weight:700">💧 Wasser</div>
+            <div style="font-size:11px;color:var(--sub);margin-top:1px">In 250ml-Schritten oder manuell eintragen</div>
+          </div>
+          <div style="font-size:22px;font-weight:900;color:var(--accent2)" id="water-liters-display">0,0 l</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <button id="btn-water-minus" style="width:42px;height:42px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:20px;font-weight:800;cursor:pointer;flex-shrink:0">–</button>
+          <input id="water-ml-input" class="oi" type="number" inputmode="numeric" placeholder="0 ml" style="flex:1;text-align:center;font-weight:800">
+          <button id="btn-water-plus" style="width:42px;height:42px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:20px;font-weight:800;cursor:pointer;flex-shrink:0">+</button>
+          <button id="btn-save-water" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:10px;padding:0 14px;color:var(--accent2);font-weight:700;cursor:pointer;flex-shrink:0">✓</button>
+        </div>
+      </div>
+
       <div id="nutr-insights"></div>
 
       <div class="tab-bar">
@@ -298,6 +314,9 @@
     <div class="ig">
       <input id="food-search-input" class="oi" type="text" placeholder="z.B. Magerquark, Banane, Vollkornbrot..." autocomplete="off">
     </div>
+    <div class="ig">
+      <input id="food-search-brand-input" class="oi" type="text" placeholder="Hersteller (optional, z.B. Danone)" autocomplete="off">
+    </div>
     <div id="food-search-status" style="font-size:12px;color:var(--sub);padding:4px 2px 8px;display:none"></div>
     <div id="food-search-results"></div>
   </div>
@@ -307,7 +326,7 @@
     <div id="scanner-placeholder" class="coach-tip" style="margin-bottom:10px">
       <div class="ct-icon">📷</div>
       <div><div class="ct-lbl">BARCODE SCANNEN</div>
-      <div class="ct-txt">Richte die Kamera auf den Barcode der Verpackung. Kamerazugriff wird beim ersten Mal angefragt.</div></div>
+      <div class="ct-txt">Richte die Kamera auf den Barcode der Verpackung, ca. 10cm Abstand für schnellen Fokus. Kamerazugriff wird beim ersten Mal angefragt.</div></div>
     </div>
     <div id="scanner-video-wrap" style="display:none;border-radius:16px;overflow:hidden;margin-bottom:10px;background:#000">
       <div id="scanner-video" style="width:100%"></div>
@@ -461,7 +480,10 @@
   <div class="mt">Training nachtragen</div>
 
   <div class="ig"><label>Datum</label>
-    <input id="mw-date" class="oi" type="date">
+    <input id="mw-date" type="hidden">
+    <button type="button" id="mw-date-display" class="oi" style="text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+      <span id="mw-date-display-text">Datum wählen</span><span style="opacity:.6">📅</span>
+    </button>
   </div>
 
   <div class="ig"><label>Art</label>
@@ -502,6 +524,24 @@
   </div>
 
   <button class="btn-p" id="btn-save-manual-workout" style="margin-top:14px">Speichern</button>
+</div>
+</div>
+
+<!-- Einheitlicher Datums-Auswahl-Kalender (ersetzt native iOS type=date Picker) -->
+<div class="mo" id="mo-date-picker">
+<div class="ms">
+  <div class="mh"></div><button class="mc" id="btn-close-date-picker">✕</button>
+  <div class="mt">📅 Datum wählen</div>
+  <div class="row" style="margin-bottom:14px">
+    <button id="dp-prev-month" style="background:var(--surface);border:none;border-radius:10px;width:36px;height:36px;color:var(--text);font-size:16px;cursor:pointer">‹</button>
+    <div id="dp-month-label" style="font-size:15px;font-weight:800;flex:1;text-align:center"></div>
+    <button id="dp-next-month" style="background:var(--surface);border:none;border-radius:10px;width:36px;height:36px;color:var(--text);font-size:16px;cursor:pointer">›</button>
+  </div>
+  <div id="dp-grid"></div>
+  <div class="row" style="margin-top:16px;gap:10px">
+    <button class="btn-sec" id="dp-reset" style="flex:1;margin:0">Zurücksetzen</button>
+    <button class="btn-p" id="dp-confirm" style="flex:1;margin:0">✓ Übernehmen</button>
+  </div>
 </div>
 </div>
 
