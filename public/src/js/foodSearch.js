@@ -18,6 +18,8 @@
 // tatsächlich gewählte Grammzahl frei umrechnen kann (wie bei FDDB).
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { searchGenericFoods } from './genericFoods.js';
+
 const OFF_LEGACY_SEARCH_URL = 'https://de.openfoodfacts.org/cgi/search.pl';
 const SEARCH_A_LICIOUS_URL = 'https://search.openfoodfacts.org/search';
 const OFF_PRODUCT_URL = 'https://de.openfoodfacts.org/api/v2/product';
@@ -127,6 +129,13 @@ export async function searchFoodByName(query, limit = 20, brand = '') {
   const trimmedQuery = query.trim();
   const trimmedBrand = (brand || '').trim();
 
+  // Generische Grundnahrungsmittel zuerst (lokal, kein Netzwerk nötig, daher
+  // sofort verfügbar) - deckt Fälle ab, die Open Food Facts als reine
+  // Markenprodukt-Datenbank kaum abbildet (z.B. frisches Obst/Gemüse).
+  // Ein Hersteller-Filter ergibt bei generischen Lebensmitteln keinen Sinn,
+  // daher wird bei gesetztem Filter direkt zu Open Food Facts übergegangen.
+  const genericMatches = trimmedBrand ? [] : searchGenericFoods(trimmedQuery);
+
   let rawProducts = null;
   let lastError = null;
 
@@ -149,6 +158,10 @@ export async function searchFoodByName(query, limit = 20, brand = '') {
   }
 
   if (lastError) {
+    // Ein OFF-Ausfall soll bereits gefundene generische Treffer nicht
+    // verdecken (z.B. "Apfel" sollte auch bei Netzwerkproblemen sofort aus
+    // der lokalen Liste kommen). Nur werfen, wenn wirklich nichts da ist.
+    if (genericMatches.length) return genericMatches;
     if (lastError.message === '__INVALID_JSON__') {
       throw new Error('Die Lebensmitteldatenbank hat eine unerwartete Antwort geliefert. Bitte versuch es in ein paar Sekunden erneut.');
     }
@@ -168,7 +181,7 @@ export async function searchFoodByName(query, limit = 20, brand = '') {
     products = products.filter((p) => p.brand.toLowerCase().includes(brandLower));
   }
 
-  return products;
+  return [...genericMatches, ...products];
 }
 
 // ── BARCODE-LOOKUP ───────────────────────────────────────────────────────
