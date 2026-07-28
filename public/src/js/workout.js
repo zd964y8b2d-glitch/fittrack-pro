@@ -288,7 +288,14 @@ async function showWorkoutEvaluation(rpe, burnedKcal, durationMin) {
     const newTotal = (existingBurned?.burned_kcal || 0) + burnedKcal;
     const source = existingBurned?.burned_source || 'Workout';
     await setBurnedCaloriesForToday(currentUser.id, newTotal, source, existingBurned?.id);
-  } catch (e) { /* nicht kritisch - Auswertung soll trotzdem angezeigt werden */ }
+  } catch (e) {
+    // War bisher komplett stumm - dadurch nicht erkennbar, WARUM die
+    // Synchronisation fehlschlägt. Jetzt sichtbar (Konsole + Toast), damit
+    // sich das beim nächsten Test diagnostizieren lässt. Blockiert die
+    // Auswertung selbst weiterhin nicht (kein "return"/"throw").
+    console.error('Kalorien-Sync (Workout -> Tageswert) fehlgeschlagen:', e);
+    showToast('⚠️ Verbrannte Kalorien konnten nicht mit Start/Ernährung synchronisiert werden');
+  }
 
   const allLogs = await getWorkoutLogs(currentUser.id, 60);
   let evaluation = evaluateWorkoutSession(allLogs, planDaysPerWeek);
