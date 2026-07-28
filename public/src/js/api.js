@@ -376,26 +376,6 @@ export async function getWeightHistoryForTrend(userId, days = 21) {
 }
 
 // ── VERBRANNTE KALORIEN (manuell erfasst, z.B. aus Apple Health/Garmin) ─
-export async function getTodayBurnedCalories(userId) {
-  const today = utcTimestampToLocalDateStr(new Date().toISOString());
-  const { data, error } = await supabase
-    .from('burned_calories').select('*')
-    .eq('user_id', userId).eq('date', today)
-    .maybeSingle();
-  if (error) throw error;
-  return data; // null, falls heute noch nichts erfasst wurde
-}
-
-export async function setTodayBurnedCalories(userId, kcal) {
-  const today = utcTimestampToLocalDateStr(new Date().toISOString());
-  const { data, error } = await supabase
-    .from('burned_calories')
-    .upsert({ user_id: userId, date: today, kcal, source: 'manual' }, { onConflict: 'user_id,date' })
-    .select().single();
-  if (error) throw error;
-  return data;
-}
-
 export async function getMeasurementHistory(userId, limit = 30) {
   const { data, error } = await supabase
     .from('body_measurements').select('*').eq('user_id', userId)
