@@ -5,16 +5,18 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData } from './api.js';
+import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
+import { matchesQuery } from './genericFoods.js';
 import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns } from './coachData.js';
 import { buildCalendarGrid, MONTH_NAMES } from './calendar.js';
 
 let currentUser = null;
 let currentProfile = null;
 let mealsCache = [];
+let customFoodsCache = [];
 
 let selectedProduct = null;
 let html5QrCode = null;
@@ -32,6 +34,10 @@ let nutrCalDataCache = {};
 export function initNutritionModule(user, profile) {
   currentUser = user;
   currentProfile = profile;
+  // Einmalig laden, damit sie ab der ersten Suche verfügbar sind - nicht
+  // kritisch für den restlichen App-Start, daher fire-and-forget mit
+  // stillem Fehlschlag (Suche funktioniert auch ohne eigene Lebensmittel).
+  getCustomFoods(user.id).then((foods) => { customFoodsCache = foods; }).catch(() => {});
 }
 
 export function updateProfileRef(profile) {
@@ -488,9 +494,19 @@ function resetMealModal() {
   document.getElementById('food-search-status').style.display = 'none';
   document.getElementById('mn-edit-id').value = '';
   ['mn-name', 'mn-cal', 'mn-p', 'mn-c', 'mn-f'].forEach((id) => (document.getElementById(id).value = ''));
+  document.getElementById('mn-save-generic').checked = false;
+  document.getElementById('mn-generic-grams').value = '100';
+  document.getElementById('mn-generic-grams-wrap').style.display = 'none';
   populateSlotSelect('mn-slot-select', preselectedSlotId);
   selectedProduct = null;
   stopScanner();
+}
+
+// Blendet das Mengenfeld nur ein, wenn "Als eigenes Lebensmittel speichern"
+// aktiviert ist - hält das Formular im Normalfall kompakt.
+export function toggleSaveGenericGrams() {
+  const checked = document.getElementById('mn-save-generic').checked;
+  document.getElementById('mn-generic-grams-wrap').style.display = checked ? '' : 'none';
 }
 
 export function switchMealTab(tab) {
@@ -507,6 +523,23 @@ export function switchMealTab(tab) {
 // ── TEXTSUCHE ─────────────────────────────────────────────────────────────
 // Liest Produktname (Pflicht, min. 3 Zeichen) und Hersteller (optional) aus
 // den beiden getrennten Feldern - beide Felder lösen dieselbe Suche aus.
+// Durchsucht die eigenen, vom Nutzer gespeicherten Lebensmittel (Cache aus
+// initNutritionModule) - gleiche Teilstring-Logik wie bei den generischen
+// Grundnahrungsmitteln, damit z.B. Mehrzahlformen ebenfalls treffen.
+function searchCustomFoods(query) {
+  const q = (query || '').trim();
+  if (q.length < 3) return [];
+  return customFoodsCache
+    .filter((f) => matchesQuery(f.name, q))
+    .map((f) => ({
+      id: `custom_${f.id}`,
+      name: f.name,
+      brand: 'Eigenes Lebensmittel',
+      imageUrl: null,
+      per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat },
+    }));
+}
+
 export function onFoodSearchInput() {
   clearTimeout(searchDebounceTimer);
   const statusEl = document.getElementById('food-search-status');
@@ -527,7 +560,11 @@ export function onFoodSearchInput() {
 
   searchDebounceTimer = setTimeout(async () => {
     try {
-      const results = await searchFoodByName(query, 20, brand);
+      // Eigene Lebensmittel zuerst (lokal, aus dem Cache, kein Netzwerk
+      // nötig) - dann generische Grundnahrungsmittel + Open Food Facts
+      // (beides bereits in searchFoodByName kombiniert).
+      const customMatches = brand ? [] : searchCustomFoods(query);
+      const results = [...customMatches, ...(await searchFoodByName(query, 20, brand))];
       // Nur rendern, wenn zwischenzeitlich keine neuere Suche gestartet wurde -
       // verhindert, dass eine langsame ältere Antwort eine neuere überschreibt
       // und die Oberfläche dadurch "hängen" lässt.
@@ -745,13 +782,10 @@ export async function saveMealFromModal() {
 
   const editId = document.getElementById('mn-edit-id').value;
   const slotId = document.getElementById('mn-slot-select').value;
-  const payload = {
-    name, cal,
-    protein: parseInt(document.getElementById('mn-p').value) || 0,
-    carbs: parseInt(document.getElementById('mn-c').value) || 0,
-    fat: parseInt(document.getElementById('mn-f').value) || 0,
-    slotId,
-  };
+  const protein = parseInt(document.getElementById('mn-p').value) || 0;
+  const carbs = parseInt(document.getElementById('mn-c').value) || 0;
+  const fat = parseInt(document.getElementById('mn-f').value) || 0;
+  const payload = { name, cal, protein, carbs, fat, slotId };
 
   try {
     assertOnline();
@@ -760,6 +794,32 @@ export async function saveMealFromModal() {
     } else {
       await addMeal(currentUser.id, { ...payload, type: 'Mahlzeit' });
     }
+
+    // Optional: als eigenes Lebensmittel für spätere Suchen speichern.
+    // Die eingegebenen Werte beziehen sich auf die angegebene Menge (Default
+    // 100g) und werden auf "pro 100g" umgerechnet, damit sie zum Schema der
+    // generischen/OFF-Ergebnisse passen (scaleNutrients invers).
+    const saveGeneric = document.getElementById('mn-save-generic')?.checked;
+    if (saveGeneric) {
+      const grams = Math.max(1, parseInt(document.getElementById('mn-generic-grams').value) || 100);
+      const factor = 100 / grams;
+      try {
+        const newFood = await addCustomFood(currentUser.id, {
+          name,
+          kcal: Math.round(cal * factor),
+          protein: Math.round(protein * factor * 10) / 10,
+          carbs: Math.round(carbs * factor * 10) / 10,
+          fat: Math.round(fat * factor * 10) / 10,
+        });
+        customFoodsCache = [newFood, ...customFoodsCache];
+      } catch (e) {
+        // Der Mahlzeit-Eintrag selbst hat bereits geklappt - ein Fehler beim
+        // Speichern als wiederverwendbares Lebensmittel soll das nicht
+        // überschatten, daher nur ein separater, klar unterscheidbarer Hinweis.
+        showToast('⚠️ Mahlzeit gespeichert, aber nicht als eigenes Lebensmittel übernommen');
+      }
+    }
+
     closeMo('mo-meal');
     await renderNutrition();
     showToast('✅ Mahlzeit gespeichert');
