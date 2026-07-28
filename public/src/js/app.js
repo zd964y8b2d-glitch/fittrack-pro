@@ -167,19 +167,35 @@ function registerServiceWorker() {
     // Versionsanzeige (Profil-Tab): fragt den aktiven Service Worker nach
     // seiner CACHE_VERSION - dieselbe, die build.sh bei jedem Deploy
     // automatisch setzt. Keine zweite, manuell zu pflegende Versionsangabe.
+    //
+    // TEMPORÄRE DIAGNOSE: schreibt Zwischenstände direkt in die Anzeige,
+    // damit sichtbar wird, an welcher Stelle es hakt, statt dass die Zeile
+    // einfach leer bleibt. Sobald die Ursache gefunden ist, auf die
+    // einfache Version (nur der else-Zweig ganz unten) zurückbauen.
+    const versionEl = () => document.getElementById('app-version-display');
+    if (versionEl()) versionEl().textContent = '⏳ SW-Status: registriere...';
+
+    let versionReceived = false;
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data?.type === 'SW_VERSION') {
-        const el = document.getElementById('app-version-display');
-        if (el) el.textContent = `Version ${event.data.version}`;
+        versionReceived = true;
+        if (versionEl()) versionEl().textContent = `Version ${event.data.version}`;
       }
     });
-    // navigator.serviceWorker.ready garantiert einen aktiven Worker für
-    // diesen Scope - anders als .controller, das bei der ALLERERSTEN Seite
-    // nach einer Neuinstallation noch null sein kann (die Seite wird erst
-    // ab dem NÄCHSTEN Laden wirklich "kontrolliert"). So kommt die Version
-    // auch beim ersten Aufruf nach einem Update zuverlässig an.
+
     const requestVersion = () => {
-      navigator.serviceWorker.ready.then((r) => r.active?.postMessage('GET_VERSION'));
+      if (versionEl()) versionEl().textContent = '⏳ SW-Status: warte auf aktiven Worker...';
+      navigator.serviceWorker.ready.then((r) => {
+        if (versionEl() && !versionReceived) {
+          versionEl().textContent = `⏳ SW-Status: aktiver Worker ${r.active ? 'gefunden' : 'FEHLT'}, sende Anfrage...`;
+        }
+        r.active?.postMessage('GET_VERSION');
+        setTimeout(() => {
+          if (versionEl() && !versionReceived) {
+            versionEl().textContent = '⚠️ SW-Status: keine Antwort nach 4s erhalten';
+          }
+        }, 4000);
+      });
     };
     requestVersion();
 
