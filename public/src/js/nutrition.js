@@ -5,7 +5,7 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood } from './api.js';
+import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood, getFrequentFoods } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
@@ -17,6 +17,7 @@ let currentUser = null;
 let currentProfile = null;
 let mealsCache = [];
 let customFoodsCache = [];
+let frequentFoodsCache = [];
 
 let selectedProduct = null;
 let html5QrCode = null;
@@ -500,6 +501,72 @@ function resetMealModal() {
   populateSlotSelect('mn-slot-select', preselectedSlotId);
   selectedProduct = null;
   stopScanner();
+  loadAndShowFrequentFoods();
+}
+
+// ── HÄUFIG VERWENDETE LEBENSMITTEL ────────────────────────────────────────
+// Zeigt die 10 häufigsten Lebensmittel der letzten 30 Tage direkt beim
+// Öffnen der Suche - noch bevor überhaupt etwas eingetippt wurde. Erspart
+// bei wiederkehrenden Mahlzeiten das erneute Suchen/Eintippen.
+async function loadAndShowFrequentFoods() {
+  const el = document.getElementById('food-frequent-list');
+  if (!el) return;
+  try {
+    frequentFoodsCache = await getFrequentFoods(currentUser.id, 30, 10);
+  } catch (e) {
+    frequentFoodsCache = [];
+  }
+  renderFrequentFoods();
+}
+
+function renderFrequentFoods() {
+  const wrap = document.getElementById('food-frequent-wrap');
+  const el = document.getElementById('food-frequent-list');
+  if (!wrap || !el) return;
+  if (!frequentFoodsCache.length) { wrap.style.display = 'none'; return; }
+
+  wrap.style.display = '';
+  el.innerHTML = frequentFoodsCache.map((f, i) => `
+    <div class="card" data-frequent-idx="${i}" style="margin-bottom:8px;cursor:pointer;padding:12px 14px">
+      <div class="row">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700">${f.name}</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:1px">Häufig verwendet</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:8px">
+          <div style="font-size:14px;font-weight:800;color:var(--orange)">${f.kcal}</div>
+          <div style="font-size:10px;color:var(--sub)">kcal${f.grams ? ` / ${f.grams}g` : ''}</div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  el.querySelectorAll('[data-frequent-idx]').forEach((card) => {
+    card.addEventListener('click', () => {
+      const f = frequentFoodsCache[parseInt(card.dataset.frequentIdx)];
+      selectProduct(frequentFoodToProduct(f), f.grams && f.grams > 0 ? f.grams : 100);
+    });
+  });
+}
+
+// Rechnet ein häufig verwendetes Lebensmittel (absolute Werte für die
+// zuletzt verwendete Grammzahl) auf "pro 100g" zurück, damit es dieselbe
+// Form wie Such-/generische/eigene Ergebnisse hat und denselben
+// Grammzahl-Anpassungs-Dialog nutzen kann.
+function frequentFoodToProduct(f) {
+  const grams = f.grams && f.grams > 0 ? f.grams : 100;
+  const factor = 100 / grams;
+  return {
+    id: `frequent_${f.name.toLowerCase().replace(/[^a-zäöüß0-9]+/g, '_')}`,
+    name: f.name,
+    brand: 'Häufig verwendet',
+    imageUrl: null,
+    per100: {
+      kcal: Math.round(f.kcal * factor),
+      protein: Math.round((f.protein || 0) * factor * 10) / 10,
+      carbs: Math.round((f.carbs || 0) * factor * 10) / 10,
+      fat: Math.round((f.fat || 0) * factor * 10) / 10,
+    },
+  };
 }
 
 // Blendet das Mengenfeld nur ein, wenn "Als eigenes Lebensmittel speichern"
@@ -550,9 +617,11 @@ export function onFoodSearchInput() {
   if (!query || query.trim().length < 3) {
     resultsEl.innerHTML = '';
     statusEl.style.display = 'none';
+    renderFrequentFoods(); // Suchfeld leer -> häufig verwendete Lebensmittel wieder zeigen
     return;
   }
 
+  document.getElementById('food-frequent-wrap').style.display = 'none';
   statusEl.style.display = 'block';
   statusEl.textContent = '🔍 Suche läuft...';
 
@@ -602,7 +671,7 @@ function renderFoodResults(results) {
 }
 
 // ── PRODUKT AUSWÄHLEN → DETAIL-ANSICHT ───────────────────────────────────
-function selectProduct(product) {
+function selectProduct(product, defaultGrams = 100) {
   selectedProduct = product;
   document.getElementById('mv-search').style.display = 'none';
   document.getElementById('mv-scan').style.display = 'none';
@@ -614,7 +683,7 @@ function selectProduct(product) {
     ${product.brand ? `<div style="font-size:12px;color:var(--sub);margin-top:2px">${product.brand}</div>` : ''}
     <div style="font-size:11px;color:var(--muted);margin-top:6px">Pro 100g: ${product.per100.kcal} kcal · P ${product.per100.protein}g · K ${product.per100.carbs}g · F ${product.per100.fat}g</div>`;
 
-  document.getElementById('food-grams').value = '100';
+  document.getElementById('food-grams').value = String(defaultGrams);
   populateSlotSelect('food-slot-select', preselectedSlotId);
   updateNutrientPreview();
 }
