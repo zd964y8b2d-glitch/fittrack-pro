@@ -457,6 +457,13 @@ export function analyzeMyPlan(exercises, goals) {
 // ── Ziel-spezifische Plananalyse ─────────────────────────────────────────
 // Prüft ob der Plan die Anforderungen jedes Ziels erfüllt.
 // Kardio-Ziele (cut, endurance) brauchen explizit Ausdauer-Einheiten.
+// Wählt zufällig einen Eintrag aus einer Liste von Formulierungsvarianten -
+// sorgt für Abwechslung bei wiederholt angezeigten Coach-Hinweisen, statt
+// immer denselben Text zu zeigen.
+function pick(variants) {
+  return variants[Math.floor(Math.random() * variants.length)];
+}
+
 export function analyzePlanByGoal(exercises, goals) {
   const GOAL_COLORS = {
     muscle: '#7B6EF6', cut: '#E74C3C', recomp: '#F5A623',
@@ -485,19 +492,50 @@ export function analyzePlanByGoal(exercises, goals) {
         .map(e => e.plan_day)
     )].length;
 
+    // Bei Fettabbau/Ausdauer/Rekomposition werden mehrere Teilaspekte
+    // (Trainingstage, Kardio-Anteil) zu EINEM handlungsorientierten Tipp
+    // gebündelt statt als getrennte Warnungen - vorher konnten hier zwei
+    // Meldungen gleichzeitig auftauchen, die beide dasselbe Grundproblem
+    // (zu wenig Kardio/Frequenz) beschrieben. Fehlt konkret ein Trainingstag,
+    // gibt der Tipp einen leicht integrierbaren Vorschlag (Spaziergang,
+    // kurze Zuhause-Einheit) statt nur eine Zahl zu nennen. Mehrere
+    // Formulierungen pro Fall sorgen für Abwechslung bei wiederholten Aufrufen.
     if (goal === 'cut') {
-      if (cardiodays < 2)
-        warnings.push(`${gInfo.i} Fettabbau: Mindestens 2 Kardio-Einheiten/Woche empfohlen – aktuell ${cardiodays}. Kardio erhöht das Kaloriendefizit und schützt die Muskelmasse.`);
-      if (totalDays < 3)
-        warnings.push(`${gInfo.i} Fettabbau: Mindestens 3 Trainingstage empfohlen für optimalen Stoffwechsel.`);
+      const missingDays = totalDays < 3;
+      const missingCardio = cardiodays < 2;
+      if (missingDays) {
+        warnings.push(pick([
+          `${gInfo.i} Fettabbau: Nur ${totalDays} Trainingstag(e)/Woche geplant (empfohlen: mind. 3) und ${cardiodays} Kardio-Einheit(en) (empfohlen: mind. 2). Ergänze an trainingsfreien Tagen einen 30–45 Min Spaziergang oder eine kurze Einheit zuhause (z.B. Jumping Jacks, Burpees) – erhöht das Defizit, ohne zusätzliche Studio-Zeit zu brauchen.`,
+          `${gInfo.i} Fettabbau: Mit ${totalDays} Trainingstag(en) und ${cardiodays} Kardio-Einheit(en) pro Woche bleibt Potenzial ungenutzt. Ein zügiger 30-Minuten-Spaziergang an einem Ruhetag zählt schon als zusätzliches Kaloriendefizit – ganz ohne Änderung am Trainingsplan.`,
+          `${gInfo.i} Fettabbau: Aktuell ${totalDays} Trainingstag(e) und ${cardiodays} Kardio-Einheit(en) pro Woche. Schon 20 Minuten Radfahren oder ein flotter Spaziergang an einem freien Tag helfen, ohne deinen Kraftplan anzutasten.`,
+        ]));
+      } else if (missingCardio) {
+        warnings.push(pick([
+          `${gInfo.i} Fettabbau: Mindestens 2 Kardio-Einheiten/Woche empfohlen (aktuell ${cardiodays}). Ergänze z.B. 20–30 Min Radfahren oder HIIT direkt nach dem Krafttraining.`,
+          `${gInfo.i} Fettabbau: Deine Trainingstage passen, Kardio fehlt aber noch (aktuell ${cardiodays}/2). Ein kurzer HIIT-Finisher nach dem Training reicht oft schon aus.`,
+        ]));
+      }
     } else if (goal === 'endurance') {
-      if (totalDays < 2)
-        warnings.push(`${gInfo.i} Ausdauer: Mindestens 2 Ausdauereinheiten/Woche für messbare Fortschritte.`);
-      if (cardiodays === 0 && goalExes.length > 0)
-        warnings.push(`${gInfo.i} Ausdauer: Keine Kardio-Einheiten gefunden. Füge Lauf, Radfahren oder HIIT hinzu.`);
+      const missingFrequency = totalDays < 2;
+      const missingCardioContent = cardiodays === 0 && goalExes.length > 0;
+      if (missingFrequency) {
+        warnings.push(pick([
+          `${gInfo.i} Ausdauer: Nur ${totalDays} Einheit(en)/Woche geplant (empfohlen: mind. 2). Auch ein zügiger Spaziergang oder ein lockerer 20-Minuten-Lauf an einem zusätzlichen Tag zählt und baut die aerobe Basis mit auf.`,
+          `${gInfo.i} Ausdauer: Für messbare Fortschritte fehlt Konsistenz (aktuell ${totalDays} Einheit(en)/Woche). Ergänze einen kurzen Spaziergang oder eine lockere Radtour an einem freien Tag – Regelmäßigkeit zählt mehr als Länge.`,
+        ]));
+      } else if (missingCardioContent) {
+        warnings.push(pick([
+          `${gInfo.i} Ausdauer: Keine Kardio-Einheiten gefunden. Füge Lauf, Radfahren oder HIIT hinzu.`,
+          `${gInfo.i} Ausdauer: Deine Einheiten enthalten noch keine erkennbaren Cardio-Übungen. Ergänze z.B. Lauf-Intervalle, Radfahren oder Rudern.`,
+        ]));
+      }
     } else if (goal === 'recomp') {
-      if (cardiodays < 1 && totalDays > 0)
-        warnings.push(`${gInfo.i} Rekomposition: 1–2 Kardio-Einheiten/Woche unterstützen den Fettabbau bei gleichzeitigem Muskelaufbau.`);
+      if (cardiodays < 1 && totalDays > 0) {
+        warnings.push(pick([
+          `${gInfo.i} Rekomposition: 1–2 Kardio-Einheiten/Woche unterstützen den Fettabbau bei gleichzeitigem Muskelaufbau. Ein Spaziergang nach dem Training reicht oft schon.`,
+          `${gInfo.i} Rekomposition: Aktuell keine Kardio-Einheit erkannt. Schon ein 20–30 Min Spaziergang oder eine lockere Radtour pro Woche unterstützt beide Ziele gleichzeitig.`,
+        ]));
+      }
     } else if (goal === 'muscle') {
       if (totalDays < 2 && exercises.length > 0)
         warnings.push(`${gInfo.i} Muskelaufbau: Mindestens 2–3 Kraft-Einheiten/Woche für progressive Überladung.`);
