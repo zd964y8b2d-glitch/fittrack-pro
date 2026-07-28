@@ -5,11 +5,12 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory } from './api.js';
+import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
 import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns } from './coachData.js';
+import { buildCalendarGrid, MONTH_NAMES } from './calendar.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -24,6 +25,9 @@ let editingSlots = [];
 let preselectedSlotId = null; // Slot, der beim Öffnen des Modals per '+' vorausgewählt wurde
 let burnedEntry = null; // aktueller {id, burned_kcal, burned_source} Datensatz für heute
 let waterEntry = null; // aktueller {id, water_ml} Datensatz für heute (Tageswert, nicht pro Mahlzeit)
+let nutrCalYear = new Date().getFullYear();
+let nutrCalMonth = new Date().getMonth(); // 0-11
+let nutrCalDataCache = {};
 
 export function initNutritionModule(user, profile) {
   currentUser = user;
@@ -339,6 +343,54 @@ export function switchNutritionTab(tab) {
   document.getElementById('nv-today').style.display = tab === 'today' ? '' : 'none';
   document.getElementById('nv-coach').style.display = tab === 'coach' ? '' : 'none';
   if (tab === 'coach') renderCoachNutritionPlan();
+}
+
+// ── LISTE/KALENDER-TOGGLE (innerhalb "Heute") ────────────────────────────
+// Bewusst identisch zu Workout > Verlauf aufgebaut: gleiche Struktur, gleiche
+// gemeinsame Grid-Engine (buildCalendarGrid aus calendar.js), kein separater
+// Icon-Button mehr. Ein Tag-Klick führt DIREKT und EINMALIG zur Tagesansicht
+// (mo-nutrition-review) - kein Kalender-Modal, das erst geschlossen werden
+// müsste, um zur eigentlichen Ansicht zu gelangen.
+export function switchMealListTab(tab) {
+  document.getElementById('ntab2-list').classList.toggle('active', tab === 'list');
+  document.getElementById('ntab2-calendar').classList.toggle('active', tab === 'calendar');
+  document.getElementById('nv-list-view').style.display = tab === 'list' ? '' : 'none';
+  document.getElementById('nv-calendar-view').style.display = tab === 'calendar' ? '' : 'none';
+  if (tab === 'calendar') renderNutritionCalendar();
+}
+
+async function renderNutritionCalendar() {
+  document.getElementById('ncal-month-label').textContent = `${MONTH_NAMES[nutrCalMonth]} ${nutrCalYear}`;
+  document.getElementById('ncal-grid').innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Lädt...</div>`;
+
+  const fromDate = new Date(nutrCalYear, nutrCalMonth, 1).toISOString();
+  const toDate = new Date(nutrCalYear, nutrCalMonth + 1, 0, 23, 59, 59).toISOString();
+  try {
+    nutrCalDataCache = await getCalendarData(currentUser.id, fromDate, toDate);
+  } catch (e) {
+    nutrCalDataCache = {};
+  }
+
+  document.getElementById('ncal-grid').innerHTML = buildCalendarGrid(nutrCalYear, nutrCalMonth, (dateStr) => {
+    if (!nutrCalDataCache[dateStr]?.hasMeals) return { clickable: false };
+    return { icons: ['🥗'], clickable: true };
+  });
+
+  document.querySelectorAll('#ncal-grid [data-cal-day]').forEach((el) => {
+    el.addEventListener('click', () => showNutritionForDate(el.dataset.calDay));
+  });
+}
+
+export function nutritionCalPrevMonth() {
+  nutrCalMonth--;
+  if (nutrCalMonth < 0) { nutrCalMonth = 11; nutrCalYear--; }
+  renderNutritionCalendar();
+}
+
+export function nutritionCalNextMonth() {
+  nutrCalMonth++;
+  if (nutrCalMonth > 11) { nutrCalMonth = 0; nutrCalYear++; }
+  renderNutritionCalendar();
 }
 
 function renderCoachNutritionPlan() {
