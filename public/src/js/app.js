@@ -8,7 +8,10 @@ import { supabase } from './supabaseClient.js';
 import * as Auth from './auth.js';
 import { getProfile } from './api.js';
 import { getCoachTip } from './coachData.js';
-import { initCalendarModule, openCalendar, calendarPrevMonth, calendarNextMonth, getSelectedCalendarDay } from './calendar.js';
+import {
+  initCalendarModule, openCalendar, calendarPrevMonth, calendarNextMonth, getSelectedCalendarDay,
+  openDatePicker, datePickerPrevMonth, datePickerNextMonth, datePickerReset, datePickerConfirm, MONTH_NAMES,
+} from './calendar.js';
 import { ringHTML, pbar, showPage, showApp, showToast, handleApiError, greet, mealTotals, openMo, closeMo } from './ui.js';
 import { initOfflineBanner } from './offline.js';
 import { startOnboarding, obNext, obBack } from './onboarding.js';
@@ -22,6 +25,7 @@ import {
   openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
   switchNutritionTab, openSlotManager, addNewSlot, saveSlots, saveBurnedCalories,
+  stepWater, saveWater,
   showNutritionForDate,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
@@ -109,7 +113,12 @@ function initModules() {
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then((reg) => {
+    // updateViaCache:'none' zwingt den Browser, die sw.js Datei selbst NIE
+    // aus dem HTTP-Cache zu bedienen. Ohne das könnte ein Update - je nach
+    // Cache-Control-Header von Cloudflare Pages - erst nach bis zu 24h oder
+    // im schlechtesten Fall gar nicht erkannt werden, obwohl der Server
+    // längst eine neue Version ausliefert.
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
       // Sobald eine neue SW-Version bereitsteht, sofort aktivieren und
       // die Seite neu laden -> Nutzer bekommt automatisch die neueste
       // Version ohne manuelles Update (siehe Anforderung 10).
@@ -120,6 +129,15 @@ function registerServiceWorker() {
             newWorker.postMessage('SKIP_WAITING');
           }
         });
+      });
+
+      // Aktiv nach einem Update suchen, sobald die App wieder sichtbar wird
+      // (z.B. vom iPhone-Homescreen aus erneut geöffnet, ohne dass eine
+      // echte Neu-Navigation stattfindet). Das ist genau der Moment "vor
+      // Benutzung", in dem Beta-Tester bisher manuell den Cache leeren
+      // mussten, damit sie den neuesten Stand bekommen.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
       });
     });
     let refreshed = false;
@@ -254,6 +272,23 @@ function on(id, event, handler) {
   el.addEventListener(event, handler);
 }
 
+// Formatiert einen YYYY-MM-DD String als lesbares deutsches Datum,
+// z.B. "27. Juli 2026" - für die Anzeige im Datepicker-Button.
+function formatDateDisplay(dateStr) {
+  if (!dateStr) return 'Datum wählen';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return `${d}. ${MONTH_NAMES[m - 1]} ${y}`;
+}
+
+// Gleicht die sichtbare Datumsanzeige bei "Training nachtragen" mit dem
+// tatsächlichen (versteckten) Datumswert ab. Wird sowohl beim Öffnen des
+// Modals als auch nach einer Auswahl im Datepicker aufgerufen.
+function syncManualWorkoutDateDisplay() {
+  const val = document.getElementById('mw-date')?.value;
+  const label = document.getElementById('mw-date-display-text');
+  if (label) label.textContent = formatDateDisplay(val);
+}
+
 // Zeigt einen drehenden Ladeindikator im Button während einer async-Aktion
 // (z.B. Anmelden) und stellt den Originaltext danach garantiert wieder her
 // (auch bei Fehlern) - gibt dem Nutzer sichtbares Feedback, dass der Klick
@@ -383,6 +418,11 @@ function wireStaticButtons() {
   // Verbrannte Kalorien speichern
   on('btn-save-burned', 'click', () => saveBurnedCalories());
 
+  // Wasser: ±250ml Stepper (speichert sofort) + manuelle Eingabe (Bestätigung per ✓)
+  on('btn-water-minus', 'click', () => stepWater(-250));
+  on('btn-water-plus', 'click', () => stepWater(250));
+  on('btn-save-water', 'click', () => saveWater());
+
   // Meal Modal
   on('btn-open-meal-modal', 'click', () => openMealModal());
   on('btn-close-meal-modal', 'click', async () => {
@@ -399,10 +439,9 @@ function wireStaticButtons() {
     on('mtab-' + t, 'click', () => switchMealTab(t));
   });
 
-  // Meal Modal - Textsuche
-  on('food-search-input', 'input', (e) => {
-    onFoodSearchInput(e.target.value);
-  });
+  // Meal Modal - Textsuche (Produktname + optionaler Hersteller)
+  on('food-search-input', 'input', () => onFoodSearchInput());
+  on('food-search-brand-input', 'input', () => onFoodSearchInput());
 
   // Meal Modal - Barcode-Scanner
   on('btn-start-scan', 'click', () => startScanner());
@@ -466,12 +505,28 @@ function wireStaticButtons() {
   on('btn-nutrition-calendar', 'click', () => openCalendar());
 
   // Manuelles Training nachtragen
-  on('btn-add-manual-workout', 'click', () => openManualWorkoutModal());
+  on('btn-add-manual-workout', 'click', () => { openManualWorkoutModal(); syncManualWorkoutDateDisplay(); });
   on('btn-close-manual-workout', 'click', () => closeMo('mo-manual-workout'));
   on('mw-type', 'change', () => toggleManualWorkoutFields());
   on('mw-distance', 'input', () => onManualWorkoutDistanceInput());
   on('mw-duration', 'input', () => toggleManualWorkoutFields());
   on('btn-save-manual-workout', 'click', () => saveManualWorkout());
+
+  // Einheitlicher Datepicker (ersetzt native iOS type=date Auswahl). Öffnet
+  // sich mit dem aktuellen mw-date Wert vorausgewählt; bei Bestätigung wird
+  // sowohl das versteckte Feld als auch die sichtbare Anzeige aktualisiert.
+  on('mw-date-display', 'click', () => {
+    const current = document.getElementById('mw-date').value;
+    openDatePicker(current, (selectedStr) => {
+      document.getElementById('mw-date').value = selectedStr;
+      syncManualWorkoutDateDisplay();
+    });
+  });
+  on('btn-close-date-picker', 'click', () => closeMo('mo-date-picker'));
+  on('dp-prev-month', 'click', () => datePickerPrevMonth());
+  on('dp-next-month', 'click', () => datePickerNextMonth());
+  on('dp-reset', 'click', () => datePickerReset());
+  on('dp-confirm', 'click', () => datePickerConfirm());
 
   // Exercise Modal
   on('btn-close-ex-modal', 'click', () => closeMo('mo-ex'));
