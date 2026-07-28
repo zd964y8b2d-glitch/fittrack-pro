@@ -34,6 +34,15 @@ export function initWorkoutModule(user, profile) {
   currentProfile = profile;
 }
 
+// Aktualisiert die lokale Profil-Referenz, nachdem das Profil an anderer
+// Stelle (Settings) geändert wurde - z.B. neue Ziele oder neu berechnete
+// Makros. Ohne diese Funktion blieb workout.js dauerhaft auf dem Stand des
+// allerersten App-Starts (Coach-Plan/Zielfarben zeigten dann veraltete
+// Ziele), bis die Seite manuell neu geladen wurde.
+export function updateProfileRef(profile) {
+  currentProfile = profile;
+}
+
 export async function refreshMyPlan() {
   myPlanCache = await getMyPlan(currentUser.id);
   return myPlanCache;
