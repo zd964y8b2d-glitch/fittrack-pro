@@ -5,7 +5,7 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getMealsBySlotHistory } from './api.js';
+import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
@@ -23,6 +23,7 @@ let activeNTab = 'today';
 let editingSlots = [];
 let preselectedSlotId = null; // Slot, der beim Öffnen des Modals per '+' vorausgewählt wurde
 let burnedEntry = null; // aktueller {id, burned_kcal, burned_source} Datensatz für heute
+let waterEntry = null; // aktueller {id, water_ml} Datensatz für heute (Tageswert, nicht pro Mahlzeit)
 
 export function initNutritionModule(user, profile) {
   currentUser = user;
@@ -44,6 +45,8 @@ export async function renderNutrition() {
   mealsCache = await getMealsForToday(currentUser.id);
   burnedEntry = await getBurnedCaloriesForToday(currentUser.id).catch(() => null);
   const burnedKcal = burnedEntry?.burned_kcal || 0;
+  waterEntry = await getWaterForToday(currentUser.id).catch(() => null);
+  const waterMl = waterEntry?.water_ml || 0;
 
   const t = mealTotals(mealsCache);
   const m = {
@@ -58,6 +61,10 @@ export async function renderNutrition() {
   const burnedSourceSelect = document.getElementById('burned-source-select');
   if (burnedInput) burnedInput.value = burnedKcal || '';
   if (burnedSourceSelect && burnedEntry?.burned_source) burnedSourceSelect.value = burnedEntry.burned_source;
+
+  const waterInput = document.getElementById('water-ml-input');
+  if (waterInput) waterInput.value = waterMl || '';
+  updateWaterLitersDisplay(waterMl);
 
   document.getElementById('nutr-sub').textContent = burnedKcal
     ? `Ziel: ${currentProfile.macro_kcal || 2000} kcal + ${burnedKcal} verbrannt`
@@ -91,7 +98,41 @@ export async function saveBurnedCalories() {
   }
 }
 
+// ── WASSER (Tageswert, manuell erfasst) ──────────────────────────────────
+function updateWaterLitersDisplay(ml) {
+  const el = document.getElementById('water-liters-display');
+  if (el) el.textContent = (ml / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) + ' l';
+}
+
+// ±250ml über die Stepper-Buttons - speichert sofort (kein Extra-Klick
+// nötig), da schnelles Antippen beim Trinken der Hauptanwendungsfall ist.
+export function stepWater(deltaMl) {
+  const input = document.getElementById('water-ml-input');
+  const cur = Math.max(0, parseInt(input.value) || 0);
+  input.value = Math.max(0, cur + deltaMl);
+  saveWater();
+}
+
+// Manuelle Eingabe wird erst per Bestätigungs-Button gespeichert (wie bei
+// den verbrannten Kalorien), damit nicht bei jedem Tastendruck ein
+// API-Call ausgelöst wird.
+export async function saveWater() {
+  const ml = Math.max(0, parseInt(document.getElementById('water-ml-input').value) || 0);
+  try {
+    assertOnline();
+    waterEntry = await setWaterForToday(currentUser.id, ml, waterEntry?.id);
+    updateWaterLitersDisplay(ml);
+  } catch (e) {
+    showToast('⚠️ Wasser speichern fehlgeschlagen');
+  }
+}
+
 // ── TREND-INSIGHTS (datengetriebener Coach) ──────────────────────────────
+// Ziel-Abweichungen (kcal/Protein vs. Tagesziel) werden bewusst NUR EINMAL
+// PRO TAG bewertet (in analyzeNutritionTrend, Basis: 7-Tage-Durchschnitt der
+// Tagessummen) - nicht mehr zusätzlich pro Mahlzeiten-Slot. Die Slot-Analyse
+// liefert ergänzend nur noch Verhaltens-Muster (z.B. häufig gegessene
+// Lebensmittel je Slot), keine eigene Ziel-Bewertung mehr.
 async function renderTrendInsights(dailyMacros) {
   const el = document.getElementById('nutr-insights');
   try {
@@ -102,15 +143,8 @@ async function renderTrendInsights(dailyMacros) {
     ]);
     const goal = currentProfile.goals?.[0] || 'health';
     const insights = analyzeNutritionTrend(history, weightHistory, dailyMacros, goal);
-
-    // Muster-Erkennung (Punkt 3): häufig gegessene Lebensmittel pro Slot +
-    // Abweichung vom Coach-Ziel dieses Slots.
-    const macroTargetsBySlot = {};
-    buildCoachNutritionPlan(dailyMacros, getSlots()).forEach((slot) => {
-      macroTargetsBySlot[slot.id] = slot;
-    });
-    const patterns = analyzeNutritionPatterns(mealsBySlot, macroTargetsBySlot);
-    const allInsights = [...insights, ...patterns.insights, ...patterns.suggestions.map((s) => s.text)];
+    const patterns = analyzeNutritionPatterns(mealsBySlot);
+    const allInsights = [...insights, ...patterns.insights];
 
     el.innerHTML = allInsights.length
       ? allInsights.map((txt) => `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-ANALYSE</div><div class="ct-txt">${txt}</div></div></div>`).join('')
@@ -399,6 +433,7 @@ export function openMealModal() {
 function resetMealModal() {
   switchMealTab('search');
   document.getElementById('food-search-input').value = '';
+  document.getElementById('food-search-brand-input').value = '';
   document.getElementById('food-search-results').innerHTML = '';
   document.getElementById('food-search-status').style.display = 'none';
   document.getElementById('mn-edit-id').value = '';
@@ -420,10 +455,14 @@ export function switchMealTab(tab) {
 }
 
 // ── TEXTSUCHE ─────────────────────────────────────────────────────────────
-export function onFoodSearchInput(query) {
+// Liest Produktname (Pflicht, min. 3 Zeichen) und Hersteller (optional) aus
+// den beiden getrennten Feldern - beide Felder lösen dieselbe Suche aus.
+export function onFoodSearchInput() {
   clearTimeout(searchDebounceTimer);
   const statusEl = document.getElementById('food-search-status');
   const resultsEl = document.getElementById('food-search-results');
+  const query = document.getElementById('food-search-input').value;
+  const brand = document.getElementById('food-search-brand-input')?.value || '';
 
   if (!query || query.trim().length < 3) {
     resultsEl.innerHTML = '';
@@ -438,7 +477,7 @@ export function onFoodSearchInput(query) {
 
   searchDebounceTimer = setTimeout(async () => {
     try {
-      const results = await searchFoodByName(query);
+      const results = await searchFoodByName(query, 20, brand);
       // Nur rendern, wenn zwischenzeitlich keine neuere Suche gestartet wurde -
       // verhindert, dass eine langsame ältere Antwort eine neuere überschreibt
       // und die Oberfläche dadurch "hängen" lässt.
@@ -545,6 +584,14 @@ export async function saveSelectedProduct() {
 }
 
 // ── BARCODE-SCANNER ───────────────────────────────────────────────────────
+// Performance-Optimierung: html5-qrcode versucht standardmäßig ALLE
+// unterstützten Formate (QR, Aztec, PDF417, ...) pro Frame zu dekodieren -
+// das kostet Zeit, die bei Lebensmittel-Barcodes (immer EAN/UPC) verschwendet
+// ist. Auf die tatsächlich relevanten Formate einzuschränken beschleunigt
+// die Erkennung pro Frame spürbar. Zusätzlich werden höhere Auflösung und
+// kontinuierlicher Autofokus angefordert (sofern vom Gerät unterstützt),
+// was die Zeit bis zum scharfen Bild bei Nahaufnahmen (Barcode aus
+// wenigen cm Entfernung) verkürzt.
 export async function startScanner() {
   const statusEl = document.getElementById('scan-status');
   document.getElementById('scanner-placeholder').style.display = 'none';
@@ -558,17 +605,49 @@ export async function startScanner() {
       statusEl.textContent = '⚠️ Scanner konnte nicht geladen werden. Bitte Internetverbindung prüfen.';
       return;
     }
-    html5QrCode = new Html5Qrcode('scanner-video');
+
+    const qrcodeConfig = { verbose: false };
+    // Nur Produkt-Barcode-Formate zulassen, falls die Library diese Konstante
+    // bereitstellt (defensiv: Feature-Check statt harter Annahme).
+    if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
+      qrcodeConfig.formatsToSupport = [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+      ];
+    }
+    html5QrCode = new Html5Qrcode('scanner-video', qrcodeConfig);
+
     await html5QrCode.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 150 } },
+      {
+        facingMode: 'environment',
+        // Kontinuierlicher Autofokus + höhere Auflösung: reduziert die
+        // "Scharfstell-Zeit" bei Nahaufnahmen. Wird von iOS Safari nicht
+        // überall unterstützt - nicht unterstützte Constraints werden von
+        // getUserMedia automatisch ignoriert, kein zusätzliches Fallback nötig.
+        advanced: [{ focusMode: 'continuous' }],
+      },
+      {
+        fps: 15,
+        qrbox: { width: 260, height: 160 },
+        disableFlip: false,
+        videoConstraints: {
+          facingMode: 'environment',
+          focusMode: 'continuous',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      },
       async (decodedText) => {
         statusEl.textContent = '✅ Barcode erkannt, suche Produkt...';
         await onBarcodeDetected(decodedText);
       },
       () => {}
     );
-    statusEl.textContent = 'Richte die Kamera auf den Barcode...';
+    statusEl.textContent = 'Richte die Kamera ca. 10cm über den Barcode - ruhig halten für schnellen Fokus.';
   } catch (err) {
     statusEl.textContent = '⚠️ Kamerazugriff nicht möglich. Bitte in den iPhone-Einstellungen erlauben.';
     resetScanButtons();
