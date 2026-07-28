@@ -27,7 +27,7 @@ import {
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
   switchNutritionTab, openSlotManager, addNewSlot, saveSlots, saveBurnedCalories,
   stepWater, saveWater,
-  switchMealListTab, nutritionCalPrevMonth, nutritionCalNextMonth,
+  nutritionCalPrevMonth, nutritionCalNextMonth,
   showNutritionForDate,
   updateProfileRef as updateNutritionProfileRef,
 } from './nutrition.js';
@@ -479,6 +479,7 @@ function wireStaticButtons() {
   // Ernährung - Tabs (Heute / Coach-Plan)
   on('ntab-today', 'click', () => switchNutritionTab('today'));
   on('ntab-coach', 'click', () => switchNutritionTab('coach'));
+  on('ntab-calendar', 'click', () => switchNutritionTab('calendar'));
 
   // Mahlzeiten-Slot Verwaltung
   on('btn-manage-slots', 'click', () => openSlotManager());
@@ -520,9 +521,7 @@ function wireStaticButtons() {
   on('btn-close-cal-day-detail', 'click', () => closeMo('mo-cal-day-detail'));
   on('btn-close-nutrition-review', 'click', () => closeMo('mo-nutrition-review'));
 
-  // Ernährung: Liste/Kalender-Toggle (identisch zu Workout > Verlauf)
-  on('ntab2-list', 'click', () => switchMealListTab('list'));
-  on('ntab2-calendar', 'click', () => switchMealListTab('calendar'));
+  // Ernährung: Kalender-Tab (Monatsnavigation)
   on('ncal-prev-month', 'click', () => nutritionCalPrevMonth());
   on('ncal-next-month', 'click', () => nutritionCalNextMonth());
 
