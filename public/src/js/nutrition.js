@@ -342,25 +342,21 @@ export function switchNutritionTab(tab) {
   activeNTab = tab;
   document.getElementById('ntab-today').classList.toggle('active', tab === 'today');
   document.getElementById('ntab-coach').classList.toggle('active', tab === 'coach');
+  document.getElementById('ntab-calendar').classList.toggle('active', tab === 'calendar');
   document.getElementById('nv-today').style.display = tab === 'today' ? '' : 'none';
   document.getElementById('nv-coach').style.display = tab === 'coach' ? '' : 'none';
+  document.getElementById('nv-calendar').style.display = tab === 'calendar' ? '' : 'none';
   if (tab === 'coach') renderCoachNutritionPlan();
-}
-
-// ── LISTE/KALENDER-TOGGLE (innerhalb "Heute") ────────────────────────────
-// Bewusst identisch zu Workout > Verlauf aufgebaut: gleiche Struktur, gleiche
-// gemeinsame Grid-Engine (buildCalendarGrid aus calendar.js), kein separater
-// Icon-Button mehr. Ein Tag-Klick führt DIREKT und EINMALIG zur Tagesansicht
-// (mo-nutrition-review) - kein Kalender-Modal, das erst geschlossen werden
-// müsste, um zur eigentlichen Ansicht zu gelangen.
-export function switchMealListTab(tab) {
-  document.getElementById('ntab2-list').classList.toggle('active', tab === 'list');
-  document.getElementById('ntab2-calendar').classList.toggle('active', tab === 'calendar');
-  document.getElementById('nv-list-view').style.display = tab === 'list' ? '' : 'none';
-  document.getElementById('nv-calendar-view').style.display = tab === 'calendar' ? '' : 'none';
   if (tab === 'calendar') renderNutritionCalendar();
 }
 
+// ── EINGEBETTETER KALENDER (gleichrangiger Tab, kein Liste/Kalender-Toggle
+// mehr innerhalb "Heute" - das duplizierte vorher "Heute" und "Liste", da
+// beide dieselbe Mahlzeitenliste zeigten). Nutzt dieselbe gemeinsame
+// Grid-Engine (buildCalendarGrid aus calendar.js) wie Workout > Verlauf.
+// Ein Tag-Klick führt DIREKT und EINMALIG zur Tagesansicht
+// (mo-nutrition-review) - kein Kalender-Modal, das erst geschlossen werden
+// müsste, um zur eigentlichen Ansicht zu gelangen.
 async function renderNutritionCalendar() {
   document.getElementById('ncal-month-label').textContent = `${MONTH_NAMES[nutrCalMonth]} ${nutrCalYear}`;
   document.getElementById('ncal-grid').innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Lädt...</div>`;
