@@ -8,10 +8,11 @@ import {
   getMyPlan, addPlanExercise, updatePlanExercise, deletePlanExercise,
   appendExerciseHistory, getWorkoutLogs, addWorkoutLog, deleteWorkoutLog,
   resetAllProgressHistory, getMealsForToday, getWorkoutLogById,
+  getBurnedCaloriesForToday, setBurnedCaloriesForToday,
 } from './api.js';
 import {
   MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal,
-  evaluateWorkoutSession, addNutritionContextToEvaluation, getNextWorkoutTip, analyzeExercisePatterns,
+  evaluateWorkoutSession, addNutritionContextToEvaluation, getNextWorkoutTip, analyzeExercisePatterns, RPE_LABELS,
 } from './coachData.js';
 import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
@@ -276,6 +277,19 @@ async function showWorkoutEvaluation(rpe, burnedKcal, durationMin) {
   const goal = currentProfile?.goals?.[0] || 'muscle';
   const planDaysPerWeek = currentProfile?.training_days || 3;
 
+  // Kalorien dieser Einheit automatisch zum heutigen Tageswert addieren -
+  // dieselbe Quelle (body_measurements/kind='burned'), die Home und
+  // Ernährung anzeigen. Ein bereits gesetzter Quellen-Wert (z.B. "Apple
+  // Health") bleibt erhalten, nur die Zahl erhöht sich; ohne bestehenden
+  // Eintrag wird die Quelle "Workout" gesetzt. Ein Fehler hier ist nicht
+  // kritisch - das Workout selbst ist zu diesem Zeitpunkt schon gespeichert.
+  try {
+    const existingBurned = await getBurnedCaloriesForToday(currentUser.id);
+    const newTotal = (existingBurned?.burned_kcal || 0) + burnedKcal;
+    const source = existingBurned?.burned_source || 'Workout';
+    await setBurnedCaloriesForToday(currentUser.id, newTotal, source, existingBurned?.id);
+  } catch (e) { /* nicht kritisch - Auswertung soll trotzdem angezeigt werden */ }
+
   const allLogs = await getWorkoutLogs(currentUser.id, 60);
   let evaluation = evaluateWorkoutSession(allLogs, planDaysPerWeek);
 
@@ -299,7 +313,7 @@ async function showWorkoutEvaluation(rpe, burnedKcal, durationMin) {
       <div class="row">
         <div><div style="font-size:24px;font-weight:900">${durationMin} Min</div><div style="font-size:11px;color:var(--sub)">Dauer</div></div>
         <div><div style="font-size:24px;font-weight:900;color:var(--orange)">~${burnedKcal}</div><div style="font-size:11px;color:var(--sub)">kcal verbrannt</div></div>
-        <div><div style="font-size:24px;font-weight:900">${evaluation.sessionCount}</div><div style="font-size:11px;color:var(--sub)">Einheiten total</div></div>
+        <div><div style="font-size:24px;font-weight:900">${RPE_LABELS[rpe] || '–'}</div><div style="font-size:11px;color:var(--sub)">Einschätzung</div></div>
       </div>
     </div>
     ${evaluation.lines.map(line => `<div class="coach-tip" style="margin-bottom:10px"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-BEWERTUNG</div><div class="ct-txt">${line}</div></div></div>`).join('')}
