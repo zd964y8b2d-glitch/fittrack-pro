@@ -385,6 +385,14 @@
     <div class="ig"><label>Mahlzeit</label>
       <select id="mn-slot-select" class="oi"></select>
     </div>
+    <div class="ig" style="display:flex;align-items:center;gap:8px;margin-top:2px">
+      <input type="checkbox" id="mn-save-generic" style="width:18px;height:18px;flex-shrink:0;accent-color:var(--accent)">
+      <label for="mn-save-generic" style="font-size:12px;color:var(--sub);margin:0">Als eigenes Lebensmittel für spätere Suche speichern</label>
+    </div>
+    <div class="ig" id="mn-generic-grams-wrap" style="display:none">
+      <label>Menge, auf die sich diese Werte beziehen (g)</label>
+      <input id="mn-generic-grams" class="oi" type="number" inputmode="numeric" placeholder="100" value="100">
+    </div>
     <input type="hidden" id="mn-edit-id">
     <button class="btn-p" id="btn-save-meal">Speichern</button>
   </div>
