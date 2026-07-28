@@ -74,7 +74,7 @@ async function fetchWithOneRetry(url) {
 }
 
 // ── TEXTSUCHE (primär: legacy Endpunkt, da einzige echte Teilstring-Suche) ─
-async function searchViaLegacyEndpoint(query, limit) {
+async function searchViaLegacyEndpoint(query, limit, brand) {
   const params = new URLSearchParams({
     search_terms: query,
     search_simple: '1',
@@ -84,6 +84,12 @@ async function searchViaLegacyEndpoint(query, limit) {
     lc: 'de',
     fields: REQUEST_FIELDS,
   });
+  if (brand) {
+    // OFF-Tag-Filter: schränkt zusätzlich zum Freitext auf eine Marke ein.
+    params.set('tagtype_0', 'brands');
+    params.set('tag_contains_0', 'contains');
+    params.set('tag_0', brand);
+  }
   const res = await fetchWithOneRetry(`${OFF_LEGACY_SEARCH_URL}?${params.toString()}`);
   if (!res.ok) throw new Error('__HTTP_ERROR__');
   const data = await safeParseJson(res);
@@ -91,11 +97,12 @@ async function searchViaLegacyEndpoint(query, limit) {
 }
 
 // ── TEXTSUCHE (Fallback: moderne Search-a-licious Beta-API) ───────────────
-async function searchViaSearchALicious(query, limit) {
+async function searchViaSearchALicious(query, limit, brand) {
   // Der langs-Parameter dieser API erwartet Sprachcodes mit Doppelpunkt
   // getrennt (z.B. "de:en"), nicht mit Komma.
+  const q = brand ? `${query} brands:"${brand}"` : query;
   const params = new URLSearchParams({
-    q: query,
+    q,
     langs: 'de:en',
     page_size: String(limit),
     fields: REQUEST_FIELDS,
@@ -110,22 +117,28 @@ async function searchViaSearchALicious(query, limit) {
 // "Skyr Vanille"). Versucht zuerst den Legacy-Endpunkt; schlägt dieser fehl
 // oder liefert 0 Treffer, wird automatisch auf Search-a-licious zurück-
 // gefallen, bevor ein Fehler an die Oberfläche gemeldet wird.
-export async function searchFoodByName(query, limit = 20) {
+// Sucht Produkte nach Namen (Teilstring-Suche, z.B. "Skyr" findet auch
+// "Skyr Vanille"). Versucht zuerst den Legacy-Endpunkt; schlägt dieser fehl
+// oder liefert 0 Treffer, wird automatisch auf Search-a-licious zurück-
+// gefallen, bevor ein Fehler an die Oberfläche gemeldet wird.
+// brand (optional): schränkt zusätzlich auf einen Hersteller/eine Marke ein.
+export async function searchFoodByName(query, limit = 20, brand = '') {
   if (!query || query.trim().length < 3) return [];
   const trimmedQuery = query.trim();
+  const trimmedBrand = (brand || '').trim();
 
   let rawProducts = null;
   let lastError = null;
 
   try {
-    rawProducts = await searchViaLegacyEndpoint(trimmedQuery, limit);
+    rawProducts = await searchViaLegacyEndpoint(trimmedQuery, limit, trimmedBrand);
   } catch (err) {
     lastError = err;
   }
 
   if (!rawProducts || !rawProducts.length) {
     try {
-      rawProducts = await searchViaSearchALicious(trimmedQuery, limit);
+      rawProducts = await searchViaSearchALicious(trimmedQuery, limit, trimmedBrand);
       lastError = null;
     } catch (err) {
       // Nur überschreiben wenn der erste Versuch auch schon fehlgeschlagen
@@ -142,10 +155,20 @@ export async function searchFoodByName(query, limit = 20) {
     throw new Error('Lebensmittelsuche momentan nicht erreichbar. Prüfe deine Internetverbindung oder versuch es später erneut.');
   }
 
-  return (rawProducts || [])
+  let products = (rawProducts || [])
     .filter((p) => p.product_name_de || p.product_name || p.generic_name_de)
     .map(normalizeProduct)
     .filter((p) => p.per100.kcal > 0); // Produkte ohne Kalorienangabe sind für uns nutzlos
+
+  // Zusätzlicher clientseitiger Hersteller-Filter als Sicherheitsnetz: die
+  // serverseitigen OFF-Tag-Filter matchen nicht immer zuverlässig, daher
+  // wird zusätzlich lokal nach Marke gefiltert, falls eine angegeben wurde.
+  if (trimmedBrand) {
+    const brandLower = trimmedBrand.toLowerCase();
+    products = products.filter((p) => p.brand.toLowerCase().includes(brandLower));
+  }
+
+  return products;
 }
 
 // ── BARCODE-LOOKUP ───────────────────────────────────────────────────────
