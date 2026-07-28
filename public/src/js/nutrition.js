@@ -127,6 +127,9 @@ export async function saveWater() {
     waterEntry = await setWaterForToday(currentUser.id, ml, waterEntry?.id);
     updateWaterLitersDisplay(ml);
   } catch (e) {
+    // Fehlerdetail in die Konsole loggen statt nur generischen Toast - hilft
+    // bei der Diagnose (z.B. fehlende water_ml Spalte in Supabase).
+    console.error('saveWater error:', e);
     showToast('⚠️ Wasser speichern fehlgeschlagen');
   }
 }
