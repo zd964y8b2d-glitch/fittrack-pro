@@ -134,6 +134,53 @@ export const COACH_PLANS = {
         { name: 'Glutebridge', muscle: 'Gesäß', sets: 4, reps: 20, weight: 0, bodyweight: true },
       ]},
     },
+    // Fettabbau: statt Muskelgruppen-Split ein 3-Tage-Ganzkörper-Zirkel mit
+    // Cardio-Finisher am Ende jeder Einheit - kürzere, dichtere Sessions mit
+    // höherem Puls statt langer Splits, passend zu Freeletics' HIIT-Kern.
+    cut: {
+      A: { focus: 'Ganzkörper Push + Cardio', exercises: [
+        { name: 'Liegestütze', muscle: 'Brust', sets: 4, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Schulter Pike Push-Up', muscle: 'Schultern', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Dips (Stuhl)', muscle: 'Trizeps', sets: 3, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Burpees', muscle: 'Ganzkörper', sets: 4, reps: 15, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Ganzkörper Pull + HIIT', exercises: [
+        { name: 'Klimmzüge', muscle: 'Rücken', sets: 4, reps: 8, weight: 0, bodyweight: true },
+        { name: 'Inverted Rows', muscle: 'Rücken', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Mountain Climbers', muscle: 'Bauch', sets: 4, reps: 30, weight: 0, bodyweight: true },
+        { name: 'Jumping Jacks', muscle: 'Ganzkörper', sets: 3, reps: 50, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Beine + Cardio-Finisher', exercises: [
+        { name: 'Kniebeugen', muscle: 'Beine', sets: 4, reps: 20, weight: 0, bodyweight: true },
+        { name: 'Ausfallschritte', muscle: 'Beine', sets: 3, reps: 16, weight: 0, bodyweight: true },
+        { name: 'Jump Squats', muscle: 'Beine', sets: 3, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Burpees', muscle: 'Ganzkörper', sets: 3, reps: 20, weight: 0, bodyweight: true },
+      ]},
+    },
+    // Rekomposition: gleiche 4-Tage-Struktur wie Muskelaufbau (Reizsetzung
+    // bleibt wichtig), aber Volumen je Tag leicht reduziert. Der bestehende
+    // HIIT-Tag bleibt unverändert - kein zusätzliches Cardio obendrauf.
+    recomp: {
+      A: { focus: 'Push (Brust/Schultern/Trizeps)', exercises: [
+        { name: 'Liegestütze', muscle: 'Brust', sets: 4, reps: 18, weight: 0, bodyweight: true },
+        { name: 'Dips (Stuhl)', muscle: 'Trizeps', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Schulter Pike Push-Up', muscle: 'Schultern', sets: 3, reps: 12, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Pull (Rücken/Core)', exercises: [
+        { name: 'Klimmzüge', muscle: 'Rücken', sets: 4, reps: 8, weight: 0, bodyweight: true },
+        { name: 'Inverted Rows', muscle: 'Rücken', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Plank', muscle: 'Bauch', sets: 3, reps: 60, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Conditioning (Ganzkörper)', exercises: [
+        { name: 'Burpees', muscle: 'Ganzkörper', sets: 4, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Mountain Climbers', muscle: 'Bauch', sets: 3, reps: 25, weight: 0, bodyweight: true },
+      ]},
+      D: { focus: 'Legs (Beine/Gesäß)', exercises: [
+        { name: 'Kniebeugen', muscle: 'Beine', sets: 4, reps: 16, weight: 0, bodyweight: true },
+        { name: 'Ausfallschritte', muscle: 'Beine', sets: 3, reps: 14, weight: 0, bodyweight: true },
+        { name: 'Glutebridge', muscle: 'Gesäß', sets: 4, reps: 18, weight: 0, bodyweight: true },
+      ]},
+    },
   },
   home: {
     muscle: {
@@ -156,6 +203,48 @@ export const COACH_PLANS = {
         { name: 'Wandsitzen', muscle: 'Beine', sets: 3, reps: 45, weight: 0, bodyweight: true },
       ]},
     },
+    // Fettabbau: gleiche 3 Tage wie Muskelaufbau, aber pro Einheit ein
+    // No-Equipment-Cardio-Finisher am Ende (Jumping Jacks/Burpees/High
+    // Knees) und höhere Wiederholungszahlen statt Muskelgruppen-Isolation.
+    cut: {
+      A: { focus: 'Oberkörper + Cardio', exercises: [
+        { name: 'Liegestütze', muscle: 'Brust', sets: 4, reps: 18, weight: 0, bodyweight: true },
+        { name: 'Diamant Liegestütze', muscle: 'Trizeps', sets: 3, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Dips (Stuhl)', muscle: 'Trizeps', sets: 3, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Jumping Jacks', muscle: 'Ganzkörper', sets: 3, reps: 50, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Rücken + HIIT', exercises: [
+        { name: 'Klimmzüge (Stange)', muscle: 'Rücken', sets: 4, reps: 8, weight: 0, bodyweight: true },
+        { name: 'Inverted Rows', muscle: 'Rücken', sets: 3, reps: 14, weight: 0, bodyweight: true },
+        { name: 'Supermans', muscle: 'Rücken', sets: 3, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Burpees', muscle: 'Ganzkörper', sets: 3, reps: 15, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Beine + Cardio-Finisher', exercises: [
+        { name: 'Kniebeugen', muscle: 'Beine', sets: 4, reps: 22, weight: 0, bodyweight: true },
+        { name: 'Ausfallschritte', muscle: 'Beine', sets: 3, reps: 18, weight: 0, bodyweight: true },
+        { name: 'Glutebridge', muscle: 'Gesäß', sets: 3, reps: 20, weight: 0, bodyweight: true },
+        { name: 'High Knees', muscle: 'Ganzkörper', sets: 3, reps: 40, weight: 0, bodyweight: true },
+      ]},
+    },
+    // Rekomposition: gleiche 3 Tage/Fokus wie Muskelaufbau, aber Volumen
+    // (eine Übung weniger je Tag, Wdh. leicht reduziert) - kein Cardio-Zusatz.
+    recomp: {
+      A: { focus: 'Push (Brust/Trizeps)', exercises: [
+        { name: 'Liegestütze', muscle: 'Brust', sets: 4, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Diamant Liegestütze', muscle: 'Trizeps', sets: 3, reps: 10, weight: 0, bodyweight: true },
+        { name: 'Dips (Stuhl)', muscle: 'Trizeps', sets: 3, reps: 10, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Pull (Rücken/Bizeps)', exercises: [
+        { name: 'Klimmzüge (Stange)', muscle: 'Rücken', sets: 4, reps: 8, weight: 0, bodyweight: true },
+        { name: 'Inverted Rows', muscle: 'Rücken', sets: 3, reps: 10, weight: 0, bodyweight: true },
+        { name: 'Supermans', muscle: 'Rücken', sets: 3, reps: 12, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Legs (Beine/Gesäß)', exercises: [
+        { name: 'Kniebeugen', muscle: 'Beine', sets: 4, reps: 16, weight: 0, bodyweight: true },
+        { name: 'Ausfallschritte', muscle: 'Beine', sets: 3, reps: 14, weight: 0, bodyweight: true },
+        { name: 'Glutebridge', muscle: 'Gesäß', sets: 3, reps: 16, weight: 0, bodyweight: true },
+      ]},
+    },
   },
   outdoor: {
     muscle: {
@@ -172,13 +261,108 @@ export const COACH_PLANS = {
         { name: 'Hanging Leg Raise', muscle: 'Bauch', sets: 3, reps: 12, weight: 0, bodyweight: true },
       ]},
     },
+    // Fettabbau: nutzt gezielt die Outdoor-Infrastruktur (Treppen/Hügel für
+    // Sprints, Parkbank für Zirkeltraining) statt reiner Kraft-Skills - das
+    // ist fachlich die Trainingsart, in der Fettabbau am meisten Sinn als
+    // eigenständiges Format ergibt. Zeitbasierte Übungen folgen der bereits
+    // etablierten Konvention "reps = Sekunden" (wie bei Plank).
+    cut: {
+      A: { focus: 'Sprint-Intervalle + Rumpf', exercises: [
+        { name: 'Sprint-Intervalle', muscle: 'Ganzkörper', sets: 8, reps: 30, weight: 0, bodyweight: true },
+        { name: 'Burpees', muscle: 'Ganzkörper', sets: 4, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Plank', muscle: 'Bauch', sets: 3, reps: 45, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Treppen-/Hügel-Zirkel', exercises: [
+        { name: 'Treppensprints', muscle: 'Beine', sets: 6, reps: 20, weight: 0, bodyweight: true },
+        { name: 'Box Jumps', muscle: 'Beine', sets: 4, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Mountain Climbers', muscle: 'Bauch', sets: 4, reps: 30, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Parkbank-Zirkel', exercises: [
+        { name: 'Step-Ups (Bank)', muscle: 'Beine', sets: 4, reps: 16, weight: 0, bodyweight: true },
+        { name: 'Dips (Bank)', muscle: 'Trizeps', sets: 4, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Bulgarian Split Squat (Bank)', muscle: 'Beine', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Burpees', muscle: 'Ganzkörper', sets: 3, reps: 15, weight: 0, bodyweight: true },
+      ]},
+    },
+    // Rekomposition: gleiche 2 Tage/Fokus wie Muskelaufbau, aber die
+    // technisch anspruchsvollsten Maximal-Skills (Muscle-Up, Pistol Squat)
+    // rausgenommen - bei leichtem Kaloriendefizit ist die Verletzungsgefahr
+    // bei solchen Bewegungen unter Ermüdung höher, moderate Alternativen
+    // liefern trotzdem einen ausreichenden Trainingsreiz.
+    recomp: {
+      A: { focus: 'Push/Pull (Oberkörper, moderat)', exercises: [
+        { name: 'Klimmzüge', muscle: 'Rücken', sets: 4, reps: 8, weight: 0, bodyweight: true },
+        { name: 'Dips (Barren)', muscle: 'Trizeps', sets: 4, reps: 10, weight: 0, bodyweight: true },
+        { name: 'Pike Push-Up', muscle: 'Schultern', sets: 3, reps: 10, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Legs & Core (moderat)', exercises: [
+        { name: 'Ausfallschritte (Sprung)', muscle: 'Beine', sets: 4, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Box Jumps', muscle: 'Beine', sets: 3, reps: 10, weight: 0, bodyweight: true },
+        { name: 'L-Sit', muscle: 'Bauch', sets: 3, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Hanging Leg Raise', muscle: 'Bauch', sets: 3, reps: 10, weight: 0, bodyweight: true },
+      ]},
+    },
   },
 };
 
+const KCAL_ADJ = { muscle: 350, cut: -450, recomp: -100, endurance: 150, health: 50 };
+const PROTEIN_FACTOR = { muscle: 2.2, cut: 2.5, recomp: 2.2, endurance: 1.8, health: 1.8 };
+
+// Normalisiert goals (String, Array oder leer/undefined) zu einem sauberen Array.
+function normalizeGoalList(goals) {
+  return Array.isArray(goals) ? goals.filter(Boolean) : (goals ? [goals] : []);
+}
+
+// Ermittelt das für ALLE Coach-Funktionen (Kalorien, Tipps, Trainingsplan-
+// Auswahl) maßgebliche "effektive Ziel" aus einer (Mehrfach-)Auswahl von bis
+// zu 3 Zielen. EINE gemeinsame Regel für die ganze App, damit Kalorienziel,
+// Coach-Tipp und geladener Trainingsplan bei gleicher Auswahl immer
+// zueinander passen. Regeln (in dieser Reihenfolge geprüft):
+//  1. Rekomposition ist inhaltlich bereits "Fettabbau inkl. Muskelaufbau" -
+//     ist sie explizit gewählt ODER sind Muskelaufbau+Fettabbau zusammen
+//     gewählt, gewinnt IMMER Rekomposition, unabhängig von einem weiteren
+//     dritten Ziel (z.B. auch bei Rekomposition + Ausdauer).
+//  2. Fettabbau (ohne obige Rekomp-Regel) + mind. 1 weiteres Ziel => das
+//     Kaloriendefizit dominiert die Kombination, Fettabbau gewinnt.
+//  3. Jede andere Mehrfachauswahl => das Ziel mit dem höchsten kcal-
+//     Überschuss gewinnt allein, es wird NICHT kombiniert.
+// Einzelauswahl verhält sich wie bisher (Regel 3 mit nur einem Element).
+function resolveGoalKey(list) {
+  if (!list.length) return 'health';
+  if (list.includes('recomp') || (list.includes('muscle') && list.includes('cut'))) return 'recomp';
+  if (list.includes('cut') && list.length > 1) return 'cut';
+  return list.reduce((best, g) => (KCAL_ADJ[g] ?? 0) > (KCAL_ADJ[best] ?? -Infinity) ? g : best, list[0]);
+}
+
+// kcal-Anpassung in absoluten kcal - für die Fettabbau+X-Kombination (Regel 2
+// oben) wird zusätzlich der höchste Überschuss der ÜBRIGEN Ziele mit dem
+// Fettabbau-Defizit verrechnet (Beispiel: Ausdauer + Fettabbau =
+// 150 + (-450) = -300 kcal) - feiner als die reine Ziel-Kennung oben, daher
+// eine eigene Funktion statt KCAL_ADJ[resolveGoalKey(list)].
+function resolveKcalAdjustment(list) {
+  if (!list.length) return 0; // kein Ziel gesetzt -> keine Anpassung (wie zuvor)
+  if (list.includes('recomp') || (list.includes('muscle') && list.includes('cut'))) return KCAL_ADJ.recomp;
+  if (list.includes('cut') && list.length > 1) {
+    const others = list.filter((g) => g !== 'cut');
+    const maxOtherAdj = others.length ? Math.max(...others.map((g) => KCAL_ADJ[g] ?? 0)) : 0;
+    return maxOtherAdj + KCAL_ADJ.cut;
+  }
+  return Math.max(...list.map((g) => KCAL_ADJ[g] ?? 0));
+}
+
+// Protein folgt einer eigenen, einfacheren Regel: die höchste Proteinvorgabe
+// aller gewählten Ziele gilt - unabhängig davon, welches Ziel die kcal-
+// Anpassung bestimmt hat. Das ist der sichere Default (schützt Muskelmasse
+// in jeder Zielkombination) und macht eine separate Sonderlogik überflüssig.
+function resolveProteinFactor(list) {
+  if (!list.length) return 2.0; // Fallback wie zuvor
+  return Math.max(...list.map((g) => PROTEIN_FACTOR[g] ?? 2.0));
+}
+
 export function getCoachPlan(goals, trainingTypes) {
   const types = Array.isArray(trainingTypes) && trainingTypes.length ? trainingTypes : ['gym'];
-  const gls = Array.isArray(goals) && goals.length ? goals : ['muscle'];
-  const primary = types[0], mainGoal = gls[0];
+  const mainGoal = resolveGoalKey(normalizeGoalList(goals));
+  const primary = types[0];
   let plan = COACH_PLANS[primary]?.[mainGoal];
   if (!plan) plan = COACH_PLANS[primary]?.muscle || COACH_PLANS.gym.muscle;
   return plan;
@@ -192,17 +376,15 @@ export function coachPlanDays(goals, trainingTypes, days) {
 
 // ── Makro-Berechnung (Mifflin-St Jeor + Zielanpassung) ──────────────────
 export function calcMacros(profile, goals, days) {
-  const g = Array.isArray(goals) ? goals[0] : goals;
+  const list = normalizeGoalList(goals);
   const { weight_kg: weight, height_cm: height, age, sex } = profile;
   const bmr = sex === 'male'
     ? 10 * weight + 6.25 * height - 5 * age + 5
     : 10 * weight + 6.25 * height - 5 * age - 161;
   const pal = { 1: 1.2, 2: 1.375, 3: 1.375, 4: 1.55, 5: 1.55, 6: 1.725, 7: 1.9 };
   const tdee = Math.round(bmr * (pal[days] || 1.55));
-  const adj = { muscle: 350, cut: -450, recomp: 0, endurance: 150, health: 50 };
-  const kcal = tdee + (adj[g] || 0);
-  const pf = { muscle: 2.2, cut: 2.5, recomp: 2.2, endurance: 1.8, health: 1.8 };
-  const protein = Math.round(weight * (pf[g] || 2.0));
+  const kcal = tdee + resolveKcalAdjustment(list);
+  const protein = Math.round(weight * resolveProteinFactor(list));
   const fat = Math.round((kcal * 0.25) / 9);
   const carbs = Math.round((kcal - protein * 4 - fat * 9) / 4);
   return { kcal, protein, carbs, fat };
@@ -218,7 +400,7 @@ export const COACH_TIPS = {
 };
 
 export function getCoachTip(goals) {
-  const g = Array.isArray(goals) ? goals[0] : goals || 'health';
+  const g = resolveGoalKey(normalizeGoalList(goals));
   const tips = COACH_TIPS[g] || COACH_TIPS.health;
   return tips[Math.floor(Math.random() * tips.length)];
 }
