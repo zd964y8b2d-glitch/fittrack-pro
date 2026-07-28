@@ -329,6 +329,46 @@ export async function deleteMeal(id) {
 }
 
 // Aggregiert Mahlzeiten der letzten N Tage für die Coach-Trendanalyse.
+// Die N häufigsten Lebensmittel der letzten `days` Tage - Basisname ohne
+// Grammzahl-Suffix (z.B. "Hähnchenbrust (200g)" -> "Hähnchenbrust"), damit
+// dieselbe Mahlzeit in unterschiedlichen Portionsgrößen als EIN Eintrag
+// zählt. Je Gruppe wird die NEUESTE Ausprägung als Vorlage mitgeliefert
+// (Werte + verwendete Grammzahl), damit sie beim erneuten Eintragen direkt
+// mit sinnvollen Vorgabewerten vorausgefüllt werden kann.
+export async function getFrequentFoods(userId, days = 30, limit = 10) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  since.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .select('meal_name, kcal, protein_g, carbs_g, fat_g, grams, measured_at')
+    .eq('user_id', userId)
+    .not('meal_name', 'is', null)
+    .gte('measured_at', since.toISOString())
+    .order('measured_at', { ascending: false });
+  if (error) throw error;
+
+  const groups = {};
+  (data || []).forEach((m) => {
+    const baseName = m.meal_name.replace(/\s*\(\d+g\)\s*$/, '');
+    if (!groups[baseName]) groups[baseName] = { name: baseName, count: 0, latest: m };
+    groups[baseName].count++;
+  });
+
+  return Object.values(groups)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map((g) => ({
+      name: g.name,
+      kcal: g.latest.kcal,
+      protein: g.latest.protein_g,
+      carbs: g.latest.carbs_g,
+      fat: g.latest.fat_g,
+      grams: g.latest.grams,
+    }));
+}
+
 // Mahlzeiten der letzten N Tage, gruppiert nach Mahlzeiten-Slot (für
 // Muster-Erkennung: welche Lebensmittel werden pro Slot wiederholt gegessen).
 export async function getMealsBySlotHistory(userId, days = 14) {
