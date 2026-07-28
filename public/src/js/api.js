@@ -241,6 +241,27 @@ export async function setBurnedCaloriesForToday(userId, kcal, source, existingId
   return data;
 }
 
+// ── EIGENE LEBENSMITTEL (aus dem Manuell-Tab heraus speicherbar) ────────
+// Ermöglicht es, ein manuell eingetragenes Lebensmittel für spätere Suchen
+// wiederzuverwenden - eigene Tabelle statt body_measurements, da es sich
+// um Referenzwerte (pro 100g) handelt, keine geloggte Mahlzeit.
+export async function getCustomFoods(userId) {
+  const { data, error } = await supabase
+    .from('custom_foods').select('*').eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addCustomFood(userId, { name, kcal, protein, carbs, fat }) {
+  const { data, error } = await supabase
+    .from('custom_foods')
+    .insert({ user_id: userId, name, kcal, protein, carbs, fat })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
 // Getrunkenes Wasser für heute (manuell erfasst, in ml). Analog zu den
 // verbrannten Kalorien: EIN Datensatz pro Tag (kind='water'), unabhängig
 // von einzelnen Mahlzeiten - da Wasser ein Tageswert ist, kein Pro-Mahlzeit-Wert.
