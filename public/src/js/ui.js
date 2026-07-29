@@ -51,9 +51,32 @@ export function showUpdateBanner(onTap) {
     b.className = 'update-banner';
     document.body.appendChild(b);
   }
-  b.innerHTML = '🔄 Neue Version verfügbar – zum Aktualisieren tippen';
-  b.onclick = onTap;
+  b.textContent = '🔄 Neue Version verfügbar – zum Aktualisieren tippen';
+  b.style.cursor = 'pointer';
+  b.onclick = () => {
+    // Sofortiges Feedback + jede weitere Bedienung (z.B. ein Anmeldeversuch)
+    // wird blockiert, bis der Reload tatsächlich greift - vorher konnte man
+    // z.B. mitten im Übergang noch auf "Anmelden" tippen.
+    b.onclick = null;
+    b.style.cursor = 'default';
+    b.textContent = '🔄 Wird aktualisiert...';
+    showUpdateOverlay();
+    onTap();
+  };
   requestAnimationFrame(() => b.classList.add('show'));
+}
+
+// Vollflächige, nicht wegklickbare Sperre während des Reloads.
+export function showUpdateOverlay() {
+  let o = document.getElementById('update-overlay');
+  if (!o) {
+    o = document.createElement('div');
+    o.id = 'update-overlay';
+    o.className = 'update-overlay';
+    o.innerHTML = '<div class="update-overlay-spinner"></div><div>Wird aktualisiert...</div>';
+    document.body.appendChild(o);
+  }
+  requestAnimationFrame(() => o.classList.add('show'));
 }
 
 export function openMo(id) { document.getElementById(id)?.classList.add('open'); }
