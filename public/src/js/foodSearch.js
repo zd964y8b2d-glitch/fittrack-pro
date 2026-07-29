@@ -125,7 +125,7 @@ async function searchViaSearchALicious(query, limit, brand) {
 // gefallen, bevor ein Fehler an die Oberfläche gemeldet wird.
 // brand (optional): schränkt zusätzlich auf einen Hersteller/eine Marke ein.
 export async function searchFoodByName(query, limit = 20, brand = '') {
-  if (!query || query.trim().length < 3) return [];
+  if (!query || query.trim().length < 2) return [];
   const trimmedQuery = query.trim();
   const trimmedBrand = (brand || '').trim();
 
@@ -135,6 +135,11 @@ export async function searchFoodByName(query, limit = 20, brand = '') {
   // Ein Hersteller-Filter ergibt bei generischen Lebensmitteln keinen Sinn,
   // daher wird bei gesetztem Filter direkt zu Open Food Facts übergegangen.
   const genericMatches = trimmedBrand ? [] : searchGenericFoods(trimmedQuery);
+
+  // Open Food Facts (Netzwerk) erst ab 3 Zeichen - vermeidet unnötige
+  // Anfragen bei sehr kurzen, oft noch unvollständigen Eingaben. Die lokale
+  // generische Liste ist bereits ab 2 Zeichen nutzbar (kein Netzwerk nötig).
+  if (trimmedQuery.length < 3) return genericMatches;
 
   let rawProducts = null;
   let lastError = null;
