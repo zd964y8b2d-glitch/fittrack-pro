@@ -209,28 +209,6 @@
       <div class="card" id="nutr-card"></div>
 
       <div class="card" style="margin-bottom:14px">
-        <div class="row" style="margin-bottom:8px">
-          <div>
-            <div style="font-size:13px;font-weight:700">🔥 Verbrannte Kalorien</div>
-            <div style="font-size:11px;color:var(--sub);margin-top:1px">Aus Apple Health, Garmin, Whoop o.ä. ablesen und eintragen</div>
-          </div>
-        </div>
-        <div class="row" style="gap:8px">
-          <input id="burned-kcal-input" class="oi" type="number" inputmode="numeric" placeholder="0" style="flex:1;text-align:center;font-weight:800">
-          <select id="burned-source-select" class="oi" style="flex:1">
-            <option value="Apple Health">Apple Health</option>
-            <option value="Google Fit">Google Fit</option>
-            <option value="Garmin">Garmin</option>
-            <option value="Whoop">Whoop</option>
-            <option value="Fitbit">Fitbit</option>
-            <option value="Workout">Workout (App-Schätzung)</option>
-            <option value="Manuell">Manuell geschätzt</option>
-          </select>
-          <button id="btn-save-burned" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:10px;padding:0 14px;color:var(--accent2);font-weight:700;cursor:pointer;flex-shrink:0">✓</button>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:14px">
         <div class="row" style="margin-bottom:10px">
           <div>
             <div style="font-size:13px;font-weight:700">💧 Wasser</div>
@@ -257,10 +235,6 @@
       <div id="nv-today">
         <div class="row" style="margin-bottom:9px">
           <div class="slbl" style="margin-bottom:0">Mahlzeiten</div>
-          <div style="display:flex;gap:6px">
-            <button class="tag" style="cursor:pointer;border:none;background:var(--surface);color:var(--sub)" id="btn-manage-slots">⚙️</button>
-            <button class="tag ta" style="cursor:pointer;border:none" id="btn-open-meal-modal">+ Mahlzeit</button>
-          </div>
         </div>
         <div id="meal-list"></div>
       </div>
@@ -633,15 +607,13 @@
 </div>
 </div>
 
-<!-- Mahlzeiten-Slot Verwaltung -->
-<div class="mo" id="mo-slots">
+<!-- Einzelne Mahlzeit umbenennen (Stift-Symbol je Slot in der Liste) -->
+<div class="mo" id="mo-slot-rename">
 <div class="ms">
-  <div class="mh"></div><button class="mc" id="btn-close-slots-modal">✕</button>
-  <div class="mt">Mahlzeiten verwalten</div>
-  <p style="font-size:12px;color:var(--sub);margin-bottom:14px">Passe Bezeichnungen an oder füge weitere Mahlzeiten hinzu.</p>
-  <div id="slots-edit-list"></div>
-  <button class="add-inline-btn" id="btn-add-slot">+ Mahlzeit hinzufügen</button>
-  <button class="btn-p" id="btn-save-slots" style="margin-top:14px">Speichern</button>
+  <div class="mh"></div><button class="mc" id="btn-close-slot-rename">✕</button>
+  <div class="mt">Mahlzeit umbenennen</div>
+  <div class="ig"><input id="slot-rename-input" class="oi" type="text"></div>
+  <button class="btn-p" id="btn-save-slot-rename">Speichern</button>
 </div>
 </div>
 
