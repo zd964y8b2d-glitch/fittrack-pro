@@ -84,20 +84,33 @@ export const GENERIC_FOODS = [
   { name: 'Zucker', per100: { kcal: 400, protein: 0, carbs: 100, fat: 0 } },
 ];
 
-// Vergleicht Suchbegriff und Name/Alias BEIDSEITIG als Teilstring: deckt so
-// sowohl "Tomate" -> "Tomaten" (Name kürzer als Suchbegriff, z.B. Mehrzahl)
-// als auch "Tomat" -> "Tomate" (Suchbegriff kürzer, unvollständige Eingabe)
-// ab, ohne für jede Wortform einen eigenen Alias pflegen zu müssen.
+// Vergleicht Suchbegriff und Name/Alias wortgrenzen-bewusst: jedes Wort der
+// Eingabe muss als Präfix zu mindestens einem Wort des Namens passen (oder
+// umgekehrt). Das deckt unvollständiges Tippen ab ("Hähn" -> "Hähnchenbrust")
+// und Mehrzahlformen ("Tomaten" -> "Tomate"), verhindert aber, dass kurze
+// Namen oder kurze Suchbegriffe zufällig als Teilstring irgendwo im jeweils
+// anderen Text auftauchen (z.B. "ei" in "Weintrauben" oder "Rindfleisch").
 export function matchesQuery(name, query) {
-  const n = name.toLowerCase();
-  const q = query.toLowerCase();
-  return n.includes(q) || q.includes(n);
+  const n = name.toLowerCase().trim();
+  const q = query.toLowerCase().trim();
+  if (!n || !q) return false;
+  if (n === q) return true;
+
+  const splitWords = (s) => s.split(/[^a-zäöüß0-9]+/i).filter(Boolean);
+  const nameWords = splitWords(n);
+  const queryWords = splitWords(q);
+  if (!queryWords.length || !nameWords.length) return false;
+
+  return queryWords.every((qw) => nameWords.some((nw) => nw.startsWith(qw) || qw.startsWith(nw)));
 }
 
 // Sucht in der generischen Liste; min. 3 Zeichen wie bei der OFF-Suche.
 export function searchGenericFoods(query) {
   const q = (query || '').trim();
-  if (q.length < 3) return [];
+  // 2 statt 3 Zeichen: diese Suche ist rein lokal (kein Netzwerk-Aufruf wie
+  // bei Open Food Facts), daher kein Grund für dieselbe Mindestlänge -
+  // deckt kurze, aber gängige Begriffe wie "Ei" oder "Öl" ab.
+  if (q.length < 2) return [];
 
   return GENERIC_FOODS
     .filter((food) => [food.name, ...(food.aliases || [])].some((n) => matchesQuery(n, q)))
