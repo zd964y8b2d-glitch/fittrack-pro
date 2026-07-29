@@ -31,8 +31,8 @@ import {
   showNutritionForDate,
   updateProfileRef as updateNutritionProfileRef,
 } from './nutrition.js';
-import { initSettingsModule, renderSettings, saveGoalEdit } from './settings.js';
-import { getWorkoutLogs, getBurnedCaloriesForToday, setBurnedCaloriesForToday, resetAllProgress, getMealsForToday } from './api.js';
+import { initSettingsModule, renderSettings, saveGoalEdit, editField } from './settings.js';
+import { getWorkoutLogs, getBurnedCaloriesForToday, setBurnedCaloriesForToday, resetAllProgress, getMealsForToday, getMeasurementHistory } from './api.js';
 
 let currentUser = null;
 let currentProfile = null;
@@ -229,6 +229,35 @@ function handleHomeTileClick(action) {
   }
 }
 
+// Zeigt eine Erinnerungskarte auf dem Start-Bildschirm, wenn die
+// wöchentliche Gewichts-Erinnerung aktiviert ist (Einstellung in Profil)
+// UND der letzte erfasste Gewichtseintrag mindestens 7 Tage zurückliegt
+// (oder noch gar keiner existiert). Antippen öffnet direkt das bestehende
+// Gewichts-Bearbeitungsfeld aus den Einstellungen.
+async function renderWeightReminder() {
+  const el = document.getElementById('home-weight-reminder');
+  if (!el) return;
+  if (!currentProfile.weekly_weight_reminder) { el.innerHTML = ''; return; }
+
+  try {
+    const history = await getMeasurementHistory(currentUser.id, 1);
+    const last = history[0];
+    const daysSince = last ? (Date.now() - new Date(last.measured_at).getTime()) / 86400000 : Infinity;
+    if (daysSince < 7) { el.innerHTML = ''; return; }
+
+    el.innerHTML = `<div class="coach-tip" id="btn-weight-reminder" style="cursor:pointer;border-color:var(--accentBd)">
+      <div class="ct-icon">⚖️</div>
+      <div><div class="ct-lbl">GEWICHTS-CHECK</div>
+      <div class="ct-txt">${last ? 'Letzter Eintrag ist über eine Woche her' : 'Noch kein Gewicht erfasst'} – tippen, um dein aktuelles Gewicht einzutragen.</div></div>
+    </div>`;
+    document.getElementById('btn-weight-reminder')?.addEventListener('click', () => {
+      editField('weight', 'Gewicht (kg)', 'number', currentProfile.weight_kg);
+    });
+  } catch (e) {
+    el.innerHTML = '';
+  }
+}
+
 async function renderHome() {
   if (!currentProfile) return;
   const meals = await getMealsForToday(currentUser.id).catch(() => []);
@@ -243,6 +272,8 @@ async function renderHome() {
 
   document.getElementById('home-sub').textContent = greet();
   document.getElementById('home-title').textContent = `Hey ${currentProfile.name} 👋`;
+
+  await renderWeightReminder();
 
   const workoutLog = await getWorkoutLogs(currentUser.id, 100);
   document.getElementById('home-stats').innerHTML = [
@@ -524,6 +555,7 @@ function wireStaticButtons() {
   // Mahlzeiten-Slot Verwaltung
   on('btn-manage-slots', 'click', () => openSlotManager());
   on('btn-close-slots-modal', 'click', () => closeMo('mo-slots'));
+  on('btn-close-weight-history', 'click', () => closeMo('mo-weight-history'));
   on('btn-add-slot', 'click', () => addNewSlot());
   on('btn-save-slots', 'click', () => saveSlots());
 
