@@ -173,7 +173,12 @@ function registerServiceWorker() {
     // umgeht das Problem komplett: sw.js hat bereits "Cache-Control: no-cache"
     // (siehe _headers), der Abruf liefert also garantiert den aktuellen Stand.
     const updateVersionDisplay = () => {
-      fetch('/sw.js', { cache: 'no-store' })
+      // Zusätzlicher Cache-Buster (?v=Zeitstempel): macht aus jeder Anfrage
+      // eine "neue", noch nie zuvor angefragte URL - umgeht dadurch
+      // garantiert JEDE Cache-Ebene (Browser UND CDN-Edge), unabhängig
+      // davon, ob "cache:'no-store'" oder die _headers-Regel allein
+      // ausreichen. Sicherste Variante nach mehreren erfolglosen Versuchen.
+      fetch('/sw.js?v=' + Date.now(), { cache: 'no-store' })
         .then((res) => res.text())
         .then((text) => {
           const match = text.match(/CACHE_VERSION\s*=\s*['"]([^'"]+)['"]/);
