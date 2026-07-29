@@ -106,6 +106,27 @@ export async function deleteWorkoutLog(id) {
   if (error) throw error;
 }
 
+// Entfernt den Fortschritts-Eintrag (history) für ein bestimmtes Datum aus
+// ALLEN eigenen Plan-Übungen des Nutzers. Wird beim Löschen eines
+// Workout-Log-Eintrags aufgerufen - ohne das würde "Fortschritt" (die
+// Gewichts-/Wiederholungs-Verlaufskurve je Übung) weiterhin einen
+// Datenpunkt für ein bereits aus "Verlauf" gelöschtes Workout zeigen, da
+// beide bisher unabhängig voneinander gespeichert wurden.
+export async function removeExerciseHistoryForDate(userId, dateStr) {
+  const { data: exercises, error } = await supabase
+    .from('workouts').select('id, history').eq('user_id', userId).eq('kind', 'plan_exercise');
+  if (error) throw error;
+
+  const affected = (exercises || []).filter(
+    (ex) => Array.isArray(ex.history) && ex.history.some((h) => h.date === dateStr)
+  );
+
+  await Promise.all(affected.map((ex) => {
+    const filtered = ex.history.filter((h) => h.date !== dateStr);
+    return supabase.from('workouts').update({ history: filtered }).eq('id', ex.id);
+  }));
+}
+
 // Setzt den kompletten Trainingsfortschritt zurück: löscht alle Workout-Logs
 // (Verlauf) und leert den Progressions-Verlauf jeder Übung im eigenen Plan.
 // Der Plan selbst (Übungen, Sätze, Ziele) bleibt erhalten - nur die
@@ -444,4 +465,17 @@ export async function getMeasurementHistory(userId, limit = 30) {
     .order('measured_at', { ascending: false }).limit(limit);
   if (error) throw error;
   return data || [];
+}
+
+// Speichert einen neuen Gewichts-Verlaufseintrag (zusätzlich zum aktuellen
+// Wert im Profil) - wird bei jeder Gewichtsänderung in den Einstellungen
+// aufgerufen, damit sich "Gewichtsverlauf" und die wöchentliche Erinnerung
+// über echte historische Daten aufbauen.
+export async function addMeasurement(userId, weightKg) {
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .insert({ user_id: userId, weight_kg: weightKg, measured_at: new Date().toISOString() })
+    .select().single();
+  if (error) throw error;
+  return data;
 }
