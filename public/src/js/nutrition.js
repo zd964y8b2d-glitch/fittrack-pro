@@ -5,7 +5,7 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, setBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood, getFrequentFoods } from './api.js';
+import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood, getFrequentFoods } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
@@ -24,7 +24,6 @@ let html5QrCode = null;
 let searchDebounceTimer = null;
 let searchRequestId = 0; // Schutz gegen veraltete Suchantworten, die neuere überschreiben
 let activeNTab = 'today';
-let editingSlots = [];
 let preselectedSlotId = null; // Slot, der beim Öffnen des Modals per '+' vorausgewählt wurde
 let burnedEntry = null; // aktueller {id, burned_kcal, burned_source} Datensatz für heute
 let waterEntry = null; // aktueller {id, water_ml} Datensatz für heute (Tageswert, nicht pro Mahlzeit)
@@ -68,11 +67,6 @@ export async function renderNutrition() {
   };
 
   // Eingabefelder mit aktuellem Stand befüllen
-  const burnedInput = document.getElementById('burned-kcal-input');
-  const burnedSourceSelect = document.getElementById('burned-source-select');
-  if (burnedInput) burnedInput.value = burnedKcal || '';
-  if (burnedSourceSelect && burnedEntry?.burned_source) burnedSourceSelect.value = burnedEntry.burned_source;
-
   const waterInput = document.getElementById('water-ml-input');
   if (waterInput) waterInput.value = waterMl || '';
   updateWaterLitersDisplay(waterMl);
@@ -96,18 +90,10 @@ export async function renderNutrition() {
 }
 
 // ── VERBRANNTE KALORIEN (manuell erfasst) ────────────────────────────────
-export async function saveBurnedCalories() {
-  const kcal = Math.max(0, parseInt(document.getElementById('burned-kcal-input').value) || 0);
-  const source = document.getElementById('burned-source-select').value;
-  try {
-    assertOnline();
-    burnedEntry = await setBurnedCaloriesForToday(currentUser.id, kcal, source, burnedEntry?.id);
-    await renderNutrition();
-    showToast('✅ Verbrannte Kalorien gespeichert');
-  } catch (e) {
-    showToast('⚠️ Speichern fehlgeschlagen');
-  }
-}
+// ── VERBRANNTE KALORIEN ───────────────────────────────────────────────────
+// Eingabemöglichkeit lebt jetzt ausschließlich auf dem Start-Bildschirm
+// (siehe app.js) - hier in Ernährung wird burnedEntry nur noch gelesen, um
+// das Tagesziel entsprechend anzupassen (siehe renderNutrition oben).
 
 // ── WASSER (Tageswert, manuell erfasst) ──────────────────────────────────
 function updateWaterLitersDisplay(ml) {
@@ -146,8 +132,16 @@ export async function saveWater() {
 // Tagessummen) - nicht mehr zusätzlich pro Mahlzeiten-Slot. Die Slot-Analyse
 // liefert ergänzend nur noch Verhaltens-Muster (z.B. häufig gegessene
 // Lebensmittel je Slot), keine eigene Ziel-Bewertung mehr.
+// Zeigt die Analysen nacheinander als Karussell (alle 6 Sekunden), statt
+// alle gleichzeitig gestapelt - vorher wirkte die Seite bei mehreren
+// zutreffenden Analysen überladen.
+let insightsCarouselTimer = null;
+let insightsCarouselItems = [];
+let insightsCarouselIndex = 0;
+
 async function renderTrendInsights(dailyMacros) {
   const el = document.getElementById('nutr-insights');
+  if (insightsCarouselTimer) { clearInterval(insightsCarouselTimer); insightsCarouselTimer = null; }
   try {
     const [history, weightHistory, mealsBySlot] = await Promise.all([
       getMealHistoryAggregated(currentUser.id, 14),
@@ -157,14 +151,34 @@ async function renderTrendInsights(dailyMacros) {
     const goal = currentProfile.goals?.[0] || 'health';
     const insights = analyzeNutritionTrend(history, weightHistory, dailyMacros, goal);
     const patterns = analyzeNutritionPatterns(mealsBySlot);
-    const allInsights = [...insights, ...patterns.insights];
+    insightsCarouselItems = [...insights, ...patterns.insights];
+    insightsCarouselIndex = 0;
 
-    el.innerHTML = allInsights.length
-      ? allInsights.map((txt) => `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-ANALYSE</div><div class="ct-txt">${txt}</div></div></div>`).join('')
-      : '';
+    if (!insightsCarouselItems.length) { el.innerHTML = ''; return; }
+    renderInsightSlide();
+
+    // Nur ein Intervall starten, wenn es überhaupt mehr als eine Analyse
+    // zum Durchwechseln gibt.
+    if (insightsCarouselItems.length > 1) {
+      insightsCarouselTimer = setInterval(() => {
+        insightsCarouselIndex = (insightsCarouselIndex + 1) % insightsCarouselItems.length;
+        renderInsightSlide();
+      }, 6000);
+    }
   } catch (e) {
     el.innerHTML = '';
   }
+}
+
+function renderInsightSlide() {
+  const el = document.getElementById('nutr-insights');
+  if (!el || !insightsCarouselItems.length) return;
+  const txt = insightsCarouselItems[insightsCarouselIndex];
+  const dots = insightsCarouselItems.length > 1
+    ? `<div style="display:flex;gap:5px;margin-top:8px">${insightsCarouselItems.map((_, i) =>
+        `<span style="width:6px;height:6px;border-radius:50%;background:${i === insightsCarouselIndex ? 'var(--accent2)' : 'var(--border)'}"></span>`).join('')}</div>`
+    : '';
+  el.innerHTML = `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-ANALYSE</div><div class="ct-txt">${txt}</div>${dots}</div></div>`;
 }
 
 // ── MAHLZEITEN NACH SLOTS GRUPPIERT ──────────────────────────────────────
@@ -193,8 +207,10 @@ function renderMealsBySlot() {
           <div style="font-size:13px;font-weight:800;color:var(--orange);margin-top:2px">${slotTotal.cal} kcal</div>
           ${hasData ? macroLegendHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
           ${hasData ? macroDonutHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
+          <button data-rename-slot="${slot.id}" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--surface);color:var(--sub);font-size:13px;cursor:pointer;flex-shrink:0">✏️</button>
+          <button data-delete-slot="${slot.id}" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--redBg);color:var(--red);font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
           <button data-add-to-slot="${slot.id}" style="width:32px;height:32px;border-radius:10px;border:none;background:var(--accentBg);color:var(--accent2);font-size:18px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>
         </div>
       </div>
@@ -209,7 +225,19 @@ function renderMealsBySlot() {
     </div>`;
   }
 
-  document.getElementById('meal-list').innerHTML = html || `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Noch nichts eingetragen.</div>`;
+  // Neue Mahlzeit (Slot) hinzufügen - inline direkt an Ort und Stelle statt
+  // über ein separates Verwaltungs-Modal. Startet als schlichter Button,
+  // verwandelt sich beim Antippen in ein Eingabefeld.
+  html += `<div style="margin-bottom:10px">
+    <button id="btn-show-add-slot" style="width:100%;padding:14px;border:2px dashed var(--border);border-radius:14px;background:transparent;color:var(--accent2);font-weight:700;font-size:14px;cursor:pointer">+ Mahlzeit hinzufügen</button>
+    <div id="add-slot-input-row" class="row" style="gap:8px;display:none">
+      <input id="new-slot-name-input" class="oi" type="text" placeholder="z.B. Snack 3" style="flex:1">
+      <button id="btn-confirm-add-slot" style="background:var(--accentBg);border:1px solid var(--accentBd);border-radius:11px;padding:0 16px;color:var(--accent2);font-weight:700;cursor:pointer;flex-shrink:0">✓</button>
+      <button id="btn-cancel-add-slot" style="background:var(--surface);border:none;border-radius:11px;padding:0 16px;color:var(--sub);cursor:pointer;flex-shrink:0">✕</button>
+    </div>
+  </div>`;
+
+  document.getElementById('meal-list').innerHTML = html;
 
   document.querySelectorAll('[data-edit-meal]').forEach((btn) => {
     btn.addEventListener('click', () => openEditMeal(btn.dataset.editMeal));
@@ -220,6 +248,26 @@ function renderMealsBySlot() {
   document.querySelectorAll('[data-add-to-slot]').forEach((btn) => {
     btn.addEventListener('click', () => openMealModalForSlot(btn.dataset.addToSlot));
   });
+  document.querySelectorAll('[data-rename-slot]').forEach((btn) => {
+    btn.addEventListener('click', () => openSlotRename(btn.dataset.renameSlot));
+  });
+  document.querySelectorAll('[data-delete-slot]').forEach((btn) => {
+    btn.addEventListener('click', () => deleteSlot(btn.dataset.deleteSlot));
+  });
+
+  document.getElementById('btn-show-add-slot')?.addEventListener('click', () => {
+    document.getElementById('btn-show-add-slot').style.display = 'none';
+    document.getElementById('add-slot-input-row').style.display = 'flex';
+    document.getElementById('new-slot-name-input').focus();
+  });
+  document.getElementById('btn-cancel-add-slot')?.addEventListener('click', () => {
+    document.getElementById('btn-show-add-slot').style.display = '';
+    document.getElementById('add-slot-input-row').style.display = 'none';
+  });
+  document.getElementById('btn-confirm-add-slot')?.addEventListener('click', confirmAddSlot);
+  document.getElementById('new-slot-name-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmAddSlot();
+  });
 }
 
 // Öffnet das Mahlzeit-Modal mit einem bereits vorausgewählten Slot - so
@@ -227,6 +275,7 @@ function renderMealsBySlot() {
 // und die Auswahl wird automatisch dem Frühstück zugeordnet.
 export function openMealModalForSlot(slotId) {
   preselectedSlotId = slotId;
+  calendarDayContext = null;
   resetMealModal();
   document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
   openMo('mo-meal');
@@ -316,8 +365,18 @@ function mealRowHTML(ml, readOnly = false) {
 }
 
 // ── MAHLZEIT BEARBEITEN ──────────────────────────────────────────────────
+// Hält fest, ob gerade ein vergangener Kalendertag betrachtet wird (dann
+// sind Bearbeiten/Löschen auf DESSEN Daten bezogen und die Tagesansicht
+// selbst wird danach neu geladen) oder "Heute" (Normalfall).
+let calendarDayContext = null; // { dateStr, meals } oder null
+
+function findMealAnywhere(mealId) {
+  return mealsCache.find((m) => m.id === mealId)
+    || (calendarDayContext?.meals || []).find((m) => m.id === mealId);
+}
+
 function openEditMeal(mealId) {
-  const meal = mealsCache.find((m) => m.id === mealId);
+  const meal = findMealAnywhere(mealId);
   if (!meal) return;
   resetMealModal();
   switchMealTab('manual');
@@ -337,7 +396,10 @@ async function confirmDeleteMeal(mealId) {
   try {
     assertOnline();
     await deleteMeal(mealId);
-    await renderNutrition();
+    // Bei Bearbeitung aus dem Kalender heraus die betrachtete Tagesansicht
+    // selbst neu laden - sonst würde fälschlich "Heute" aktualisiert.
+    if (calendarDayContext) await showNutritionForDate(calendarDayContext.dateStr);
+    else await renderNutrition();
     showToast('Mahlzeit gelöscht');
   } catch (e) {
     showToast('⚠️ Löschen fehlgeschlagen');
@@ -426,50 +488,63 @@ function renderCoachNutritionPlan() {
       </div>`).join('')}`;
 }
 
-// ── SLOT-VERWALTUNG (Bearbeiten/Hinzufügen/Entfernen) ────────────────────
-export function openSlotManager() {
-  editingSlots = JSON.parse(JSON.stringify(getSlots()));
-  renderSlotEditList();
-  openMo('mo-slots');
+// ── SLOT-VERWALTUNG (Umbenennen/Hinzufügen/Entfernen je einzelnem Slot) ──
+// Ersetzt das frühere Sammel-Verwaltungs-Modal: jede Mahlzeit hat jetzt ihr
+// eigenes Stift- (umbenennen) und X-Symbol (löschen), neue Mahlzeiten werden
+// direkt inline am Ende der Liste hinzugefügt (siehe renderMealsBySlot).
+let renamingSlotId = null;
+
+export function openSlotRename(slotId) {
+  const slot = getSlots().find((s) => s.id === slotId);
+  if (!slot) return;
+  renamingSlotId = slotId;
+  document.getElementById('slot-rename-input').value = slot.label;
+  openMo('mo-slot-rename');
 }
 
-function renderSlotEditList() {
-  const el = document.getElementById('slots-edit-list');
-  el.innerHTML = editingSlots.map((slot, i) => `
-    <div class="row" style="gap:8px;margin-bottom:8px">
-      <input class="oi" type="text" value="${slot.label}" data-slot-label="${i}" style="flex:1">
-      <button class="del-btn" data-slot-remove="${i}" ${editingSlots.length <= 1 ? 'disabled style="opacity:.3"' : ''}>✕</button>
-    </div>`).join('');
-
-  el.querySelectorAll('[data-slot-label]').forEach((input) => {
-    input.addEventListener('input', (e) => {
-      editingSlots[parseInt(input.dataset.slotLabel)].label = e.target.value;
-    });
-  });
-  el.querySelectorAll('[data-slot-remove]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.slotRemove);
-      editingSlots = removeMealSlot(editingSlots, editingSlots[idx].id);
-      renderSlotEditList();
-    });
-  });
-}
-
-export function addNewSlot() {
-  editingSlots = addMealSlot(editingSlots, 'Neue Mahlzeit');
-  renderSlotEditList();
-}
-
-export async function saveSlots() {
+export async function saveSlotRename() {
+  const newLabel = document.getElementById('slot-rename-input').value.trim();
+  if (!newLabel) { showToast('⚠️ Name darf nicht leer sein'); return; }
   try {
     assertOnline();
-    const updated = await updateProfile(currentUser.id, { meal_slots: editingSlots });
+    const slots = getSlots().map((s) => (s.id === renamingSlotId ? { ...s, label: newLabel } : s));
+    const updated = await updateProfile(currentUser.id, { meal_slots: slots });
     currentProfile = updated;
-    closeMo('mo-slots');
+    closeMo('mo-slot-rename');
     await renderNutrition();
-    showToast('✅ Mahlzeiten aktualisiert');
+    showToast('✅ Umbenannt');
   } catch (e) {
     showToast('⚠️ Speichern fehlgeschlagen');
+  }
+}
+
+async function deleteSlot(slotId) {
+  if (getSlots().length <= 1) { showToast('Mindestens eine Mahlzeit muss bestehen bleiben'); return; }
+  if (!confirm('Diese Mahlzeit wirklich löschen? Bereits eingetragene Lebensmittel bleiben erhalten, aber ohne Zuordnung.')) return;
+  try {
+    assertOnline();
+    const slots = removeMealSlot(getSlots(), slotId);
+    const updated = await updateProfile(currentUser.id, { meal_slots: slots });
+    currentProfile = updated;
+    await renderNutrition();
+    showToast('Mahlzeit gelöscht');
+  } catch (e) {
+    showToast('⚠️ Löschen fehlgeschlagen');
+  }
+}
+
+async function confirmAddSlot() {
+  const name = document.getElementById('new-slot-name-input').value.trim();
+  if (!name) return;
+  try {
+    assertOnline();
+    const slots = addMealSlot(getSlots(), name);
+    const updated = await updateProfile(currentUser.id, { meal_slots: slots });
+    currentProfile = updated;
+    await renderNutrition();
+    showToast('✅ Mahlzeit hinzugefügt');
+  } catch (e) {
+    showToast('⚠️ Hinzufügen fehlgeschlagen');
   }
 }
 
@@ -480,13 +555,6 @@ function populateSlotSelect(selectId, currentSlotId) {
 }
 
 // ── MODAL: TAB-STEUERUNG (Suche / Scannen / Manuell) ────────────────────
-export function openMealModal() {
-  preselectedSlotId = null;
-  resetMealModal();
-  document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
-  openMo('mo-meal');
-}
-
 function resetMealModal() {
   switchMealTab('search');
   document.getElementById('food-search-input').value = '';
@@ -890,7 +958,8 @@ export async function saveMealFromModal() {
     }
 
     closeMo('mo-meal');
-    await renderNutrition();
+    if (calendarDayContext) await showNutritionForDate(calendarDayContext.dateStr);
+    else await renderNutrition();
     showToast('✅ Mahlzeit gespeichert');
   } catch (err) {
     showToast(err.message?.includes('Internet') ? err.message : '⚠️ Speichern fehlgeschlagen');
@@ -900,11 +969,53 @@ export async function saveMealFromModal() {
 export function getMealsCache() { return mealsCache; }
 
 // ── RÜCKBLICK: MAHLZEITEN EINES VERGANGENEN TAGES (Sprung aus dem Kalender) ─
+// Zeigt die Mahlzeiten dieses Tages jetzt nach Slot gruppiert (wie "Heute"),
+// statt einer reinen Auflistung aller Lebensmittel - und sie lassen sich
+// direkt hier bearbeiten/löschen (siehe calendarDayContext oben).
+export function closeNutritionReview() {
+  calendarDayContext = null;
+  closeMo('mo-nutrition-review');
+}
+
 export async function showNutritionForDate(dateStr) {
   try {
     const meals = await getMealsForDate(currentUser.id, dateStr);
+    calendarDayContext = { dateStr, meals };
     const t = mealTotals(meals);
     const dateLabel = new Date(dateStr + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+
+    const slots = getSlots();
+    const byslot = {};
+    slots.forEach((s) => (byslot[s.id] = []));
+    const unassigned = [];
+    meals.forEach((meal) => {
+      if (meal.meal_slot_id && byslot[meal.meal_slot_id]) byslot[meal.meal_slot_id].push(meal);
+      else unassigned.push(meal);
+    });
+
+    let slotsHtml = slots.map((slot) => {
+      const slotMeals = byslot[slot.id] || [];
+      if (!slotMeals.length) return '';
+      const slotTotal = mealTotals(slotMeals);
+      return `<div class="day-card" style="margin-bottom:10px">
+        <div class="row" style="align-items:center;margin-bottom:10px">
+          <div style="flex:1">
+            <div class="day-name">${slot.label}</div>
+            <div style="font-size:13px;font-weight:800;color:var(--orange);margin-top:2px">${slotTotal.cal} kcal</div>
+            ${macroLegendHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat)}
+          </div>
+          ${macroDonutHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat)}
+        </div>
+        ${slotMeals.map((ml) => mealRowHTML(ml)).join('')}
+      </div>`;
+    }).join('');
+
+    if (unassigned.length) {
+      slotsHtml += `<div class="day-card" style="margin-bottom:10px;border-left:3px solid var(--muted)">
+        <div class="day-hdr"><div class="day-name">Ohne Zuordnung</div></div>
+        ${unassigned.map((ml) => mealRowHTML(ml)).join('')}
+      </div>`;
+    }
 
     document.getElementById('nutrition-review-title').textContent = dateLabel;
     document.getElementById('nutrition-review-content').innerHTML = `
@@ -912,9 +1023,14 @@ export async function showNutritionForDate(dateStr) {
         <div style="font-size:24px;font-weight:900">${t.cal} kcal</div>
         ${macroLegendHTML(t.protein, t.carbs, t.fat)}
       </div>
-      ${meals.length
-        ? meals.map((ml) => mealRowHTML(ml, true)).join('')
-        : `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Keine Mahlzeiten an diesem Tag.</div>`}`;
+      ${slotsHtml || `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Keine Mahlzeiten an diesem Tag.</div>`}`;
+
+    document.querySelectorAll('#nutrition-review-content [data-edit-meal]').forEach((btn) => {
+      btn.addEventListener('click', () => openEditMeal(btn.dataset.editMeal));
+    });
+    document.querySelectorAll('#nutrition-review-content [data-del-meal]').forEach((btn) => {
+      btn.addEventListener('click', () => confirmDeleteMeal(btn.dataset.delMeal));
+    });
 
     openMo('mo-nutrition-review');
   } catch (e) {
