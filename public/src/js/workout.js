@@ -9,6 +9,7 @@ import {
   appendExerciseHistory, getWorkoutLogs, addWorkoutLog, deleteWorkoutLog,
   resetAllProgressHistory, getMealsForToday, getWorkoutLogById,
   getBurnedCaloriesForToday, setBurnedCaloriesForToday,
+  removeExerciseHistoryForDate,
 } from './api.js';
 import {
   MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal,
@@ -775,7 +776,7 @@ function renderHistoryList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span class="tag ta">${new Date(w.performed_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
-            <button data-del-log="${w.id}" style="background:var(--redBg);border:none;border-radius:8px;width:28px;height:28px;color:var(--red);font-size:14px;cursor:pointer">✕</button>
+            <button data-del-log="${w.id}" data-del-date="${toLocalDateStr(new Date(w.performed_at))}" style="background:var(--redBg);border:none;border-radius:8px;width:28px;height:28px;color:var(--red);font-size:14px;cursor:pointer">✕</button>
           </div>
         </div>
       </div>`).join('')
@@ -794,6 +795,12 @@ function renderHistoryList() {
       if (!confirm('Diesen Workout-Eintrag löschen?')) return;
       try {
         await deleteWorkoutLog(btn.dataset.delLog);
+        // Zugehörige Fortschritts-Datenpunkte (je Übung) für dasselbe Datum
+        // ebenfalls entfernen - sonst zeigt "Fortschritt" weiterhin einen
+        // Datenpunkt für ein bereits gelöschtes Workout.
+        if (btn.dataset.delDate) {
+          await removeExerciseHistoryForDate(currentUser.id, btn.dataset.delDate);
+        }
         renderWorkoutHistory();
         showToast('Eintrag gelöscht');
       } catch (e) {
