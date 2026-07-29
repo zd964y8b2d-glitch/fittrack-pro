@@ -23,12 +23,12 @@ import {
 } from './workout.js';
 import {
   initNutritionModule, renderNutrition, saveMealFromModal, toggleSaveGenericGrams,
-  openMealModal, switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
+  switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
-  switchNutritionTab, openSlotManager, addNewSlot, saveSlots, saveBurnedCalories,
+  switchNutritionTab, openSlotRename, saveSlotRename,
   stepWater, saveWater,
   nutritionCalPrevMonth, nutritionCalNextMonth,
-  showNutritionForDate,
+  showNutritionForDate, closeNutritionReview,
   updateProfileRef as updateNutritionProfileRef,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit, editField } from './settings.js';
@@ -509,16 +509,12 @@ function wireStaticButtons() {
   // Fortschritt zurücksetzen
   on('btn-reset-progress', 'click', () => resetProgress());
 
-  // Verbrannte Kalorien speichern
-  on('btn-save-burned', 'click', () => saveBurnedCalories());
-
   // Wasser: ±250ml Stepper (speichert sofort) + manuelle Eingabe (Bestätigung per ✓)
   on('btn-water-minus', 'click', () => stepWater(-250));
   on('btn-water-plus', 'click', () => stepWater(250));
   on('btn-save-water', 'click', () => saveWater());
 
   // Meal Modal
-  on('btn-open-meal-modal', 'click', () => openMealModal());
   on('btn-close-meal-modal', 'click', async () => {
     await stopScanner();
     closeMo('mo-meal');
@@ -557,12 +553,10 @@ function wireStaticButtons() {
   on('ntab-coach', 'click', () => switchNutritionTab('coach'));
   on('ntab-calendar', 'click', () => switchNutritionTab('calendar'));
 
-  // Mahlzeiten-Slot Verwaltung
-  on('btn-manage-slots', 'click', () => openSlotManager());
-  on('btn-close-slots-modal', 'click', () => closeMo('mo-slots'));
+  // Mahlzeit umbenennen (Stift-Symbol je Slot, siehe renderMealsBySlot)
+  on('btn-close-slot-rename', 'click', () => closeMo('mo-slot-rename'));
+  on('btn-save-slot-rename', 'click', () => saveSlotRename());
   on('btn-close-weight-history', 'click', () => closeMo('mo-weight-history'));
-  on('btn-add-slot', 'click', () => addNewSlot());
-  on('btn-save-slots', 'click', () => saveSlots());
 
   // Workout-Ende: RPE-Abfrage und Coach-Auswertung
   document.querySelectorAll('.rpe-btn').forEach((btn) => {
@@ -596,7 +590,7 @@ function wireStaticButtons() {
     }
   });
   on('btn-close-cal-day-detail', 'click', () => closeMo('mo-cal-day-detail'));
-  on('btn-close-nutrition-review', 'click', () => closeMo('mo-nutrition-review'));
+  on('btn-close-nutrition-review', 'click', () => closeNutritionReview());
 
   // Ernährung: Kalender-Tab (Monatsnavigation)
   on('ncal-prev-month', 'click', () => nutritionCalPrevMonth());
