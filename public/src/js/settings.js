@@ -3,7 +3,7 @@
 // Profil-Einstellungen: Körperdaten, Ziele (max. 3), Trainingsarten (max. 3),
 // Trainingstage, Makros (manuell ODER per Coach-Formel neu berechnet).
 // ═══════════════════════════════════════════════════════════════════════════
-import { updateProfile } from './api.js';
+import { updateProfile, addMeasurement, getMeasurementHistory } from './api.js';
 import { GOAL_OPTS, TYPE_OPTS, calcMacros } from './coachData.js';
 import { showToast, openMo, closeMo } from './ui.js';
 import { assertOnline } from './offline.js';
@@ -28,8 +28,10 @@ export function renderSettings() {
   document.getElementById('set-profile').innerHTML =
     si('Name', u.name, 'name', 'Name', 'text', u.name) +
     si('Gewicht', u.weight_kg + ' kg', 'weight', 'Gewicht (kg)', 'number', u.weight_kg) +
+    siWeightHistory() +
     si('Alter', u.age + ' J.', 'age', 'Alter', 'number', u.age) +
-    si('Größe', u.height_cm + ' cm', 'height', 'Größe (cm)', 'number', u.height_cm);
+    si('Größe', u.height_cm + ' cm', 'height', 'Größe (cm)', 'number', u.height_cm) +
+    siToggle('Wöchentliche Gewichts-Erinnerung', 'weekly_weight_reminder', u.weekly_weight_reminder);
 
   const gls = (u.goals || []).map((v) => GOAL_OPTS.find((o) => o.v === v)?.l || v).join(', ');
   const tps = (u.training_types || []).map((v) => TYPE_OPTS.find((o) => o.v === v)?.l || v).join(', ');
@@ -55,6 +57,52 @@ function si(lbl, val, key, label, type, cur) {
   </div>`;
 }
 
+// Öffnet statt des Bearbeitungsfelds eine Liste der letzten Gewichtseinträge
+// - jede Gewichtsänderung (siehe saveGoalEdit) wird zusätzlich historisiert.
+function siWeightHistory() {
+  return `<div class="si" id="btn-open-weight-history" style="cursor:pointer">
+    <div class="si-l"><div class="si-name">Gewichtsverlauf</div><div class="si-val">Verlauf ansehen</div></div>
+    <div class="si-r">›</div>
+  </div>`;
+}
+
+// Toggle-Zeile, speichert sofort bei Änderung (kein Umweg über das
+// generische Bearbeitungs-Modal nötig für einen einfachen Ein/Aus-Wert).
+function siToggle(lbl, key, checked) {
+  return `<div class="si" style="border:none">
+    <div class="si-l"><div class="si-name">${lbl}</div><div class="si-val">Einmal pro Woche ans Wiegen erinnern</div></div>
+    <label class="toggle-switch"><input type="checkbox" id="toggle-${key}" ${checked ? 'checked' : ''}><span class="slider"></span></label>
+  </div>`;
+}
+
+export async function openWeightHistory() {
+  const modalBody = document.getElementById('weight-history-content');
+  modalBody.innerHTML = `<div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">Lädt...</div>`;
+  openMo('mo-weight-history');
+  try {
+    const history = await getMeasurementHistory(currentUser.id, 30);
+    modalBody.innerHTML = history.length
+      ? history.map((h) => `<div class="si" style="border:none">
+          <div class="si-l"><div class="si-name">${new Date(h.measured_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div></div>
+          <div style="font-size:15px;font-weight:800">${h.weight_kg} kg</div>
+        </div>`).join('')
+      : `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Noch keine Einträge. Ändere dein Gewicht oben, um den Verlauf zu starten.</div>`;
+  } catch (e) {
+    modalBody.innerHTML = `<div style="text-align:center;color:var(--sub);padding:24px;font-size:13px">⚠️ Verlauf konnte nicht geladen werden.</div>`;
+  }
+}
+
+async function toggleWeeklyReminder(checked) {
+  try {
+    assertOnline();
+    const updated = await updateProfile(currentUser.id, { weekly_weight_reminder: checked });
+    currentProfile = updated;
+    if (onProfileUpdated) onProfileUpdated(updated);
+  } catch (e) {
+    showToast('⚠️ Einstellung konnte nicht gespeichert werden');
+  }
+}
+
 function siChoice(lbl, val, key) {
   return `<div class="si" data-choice-key="${key}">
     <div class="si-l"><div class="si-name">${lbl}</div><div class="si-val">${val}</div></div>
@@ -73,9 +121,11 @@ function attachSettingsListeners() {
     el.addEventListener('click', () => editChoice(key, label, opts, 3));
   });
   document.getElementById('recalc-btn')?.addEventListener('click', recalc);
+  document.getElementById('btn-open-weight-history')?.addEventListener('click', openWeightHistory);
+  document.getElementById('toggle-weekly_weight_reminder')?.addEventListener('change', (e) => toggleWeeklyReminder(e.target.checked));
 }
 
-function editField(key, label, type, cur) {
+export function editField(key, label, type, cur) {
   _editKey = key; _editType = type;
   document.getElementById('mg-title').textContent = label + ' ändern';
   document.getElementById('mg-body').innerHTML = `<input id="gv" class="oi" type="${type}" inputmode="${type === 'number' ? 'decimal' : 'text'}" value="${cur}" style="width:100%;margin-bottom:8px">`;
@@ -135,6 +185,12 @@ export async function saveGoalEdit() {
     }
     const updated = await updateProfile(currentUser.id, patch);
     currentProfile = updated;
+    // Jede Gewichtsänderung zusätzlich historisieren, damit "Gewichtsverlauf"
+    // und die wöchentliche Erinnerung echte Daten haben. Nicht kritisch für
+    // den eigentlichen Speichervorgang - Fehler hier blockieren ihn nicht.
+    if (_editKey === 'weight') {
+      addMeasurement(currentUser.id, patch.weight_kg).catch(() => {});
+    }
     closeMo('mo-goal');
     renderSettings();
     if (onProfileUpdated) onProfileUpdated(updated);
