@@ -84,12 +84,15 @@ export const GENERIC_FOODS = [
   { name: 'Zucker', per100: { kcal: 400, protein: 0, carbs: 100, fat: 0 } },
 ];
 
-// Vergleicht Suchbegriff und Name/Alias wortgrenzen-bewusst: jedes Wort der
-// Eingabe muss als Präfix zu mindestens einem Wort des Namens passen (oder
-// umgekehrt). Das deckt unvollständiges Tippen ab ("Hähn" -> "Hähnchenbrust")
-// und Mehrzahlformen ("Tomaten" -> "Tomate"), verhindert aber, dass kurze
-// Namen oder kurze Suchbegriffe zufällig als Teilstring irgendwo im jeweils
-// anderen Text auftauchen (z.B. "ei" in "Weintrauben" oder "Rindfleisch").
+// Vergleicht Suchbegriff und Name/Alias wortgrenzen-bewusst:
+//  - Exakte Übereinstimmung eines Wortes -> immer Treffer.
+//  - Eines der beiden ist Präfix des anderen -> Treffer (deckt
+//    unvollständiges Tippen ab: "Hähn" -> "Hähnchenbrust"; und
+//    Mehrzahlformen: "Tomaten" -> "Tomate").
+//  - Teilstring-Treffer an BELIEBIGER Position innerhalb eines Wortes NUR
+//    ab 4 Zeichen erlaubt -> deckt deutsche Komposita ab ("Brot" ist Teil
+//    von "Vollkornbrot"), ohne dass sehr kurze Fragmente (2-3 Zeichen)
+//    zufällig überall auftauchen (z.B. "ei" in "Weintrauben"/"Rindfleisch").
 export function matchesQuery(name, query) {
   const n = name.toLowerCase().trim();
   const q = query.toLowerCase().trim();
@@ -101,7 +104,12 @@ export function matchesQuery(name, query) {
   const queryWords = splitWords(q);
   if (!queryWords.length || !nameWords.length) return false;
 
-  return queryWords.every((qw) => nameWords.some((nw) => nw.startsWith(qw) || qw.startsWith(nw)));
+  return queryWords.every((qw) => nameWords.some((nw) => {
+    if (nw === qw || nw.startsWith(qw) || qw.startsWith(nw)) return true;
+    if (qw.length >= 4 && nw.includes(qw)) return true;
+    if (nw.length >= 4 && qw.includes(nw)) return true;
+    return false;
+  }));
 }
 
 // Sucht in der generischen Liste; min. 3 Zeichen wie bei der OFF-Suche.
