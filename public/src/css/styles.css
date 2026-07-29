@@ -186,7 +186,13 @@ body{
 
 .mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(10px);align-items:flex-end;z-index:200;}
 .mo.open{display:flex;}
-.ms{background:var(--surface);border-radius:22px 22px 0 0;padding:24px 20px calc(44px + var(--safe-bottom));width:100%;max-width:430px;border:1px solid var(--border);max-height:92vh;overflow-y:auto;position:relative;}
+.ms{background:var(--surface);border-radius:22px 22px 0 0;padding:24px 20px calc(44px + var(--safe-bottom));width:100%;max-width:430px;border:1px solid var(--border);max-height:92dvh;overflow-y:auto;position:relative;}
+/* Mahlzeit-Suche: nah am oberen Rand fixiert statt als Bottom-Sheet - nutzt
+   deutlich mehr Platz für Suchergebnisse und bleibt beim Tippen/Laden von
+   Ergebnissen stabil an derselben Position, statt als Bottom-Sheet zu
+   "springen". */
+#mo-meal{align-items:flex-start;}
+#mo-meal .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;max-height:calc(92dvh - 40px - var(--safe-top));}
 .mh{width:34px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
 .mt{font-size:18px;font-weight:800;margin-bottom:16px;letter-spacing:-.3px;}
 .mc{position:absolute;right:20px;top:24px;background:var(--card2);border:none;border-radius:9px;width:29px;height:29px;cursor:pointer;color:var(--sub);font-size:14px;}
