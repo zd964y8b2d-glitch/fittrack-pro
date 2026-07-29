@@ -595,7 +595,7 @@ export function switchMealTab(tab) {
 // Grundnahrungsmitteln, damit z.B. Mehrzahlformen ebenfalls treffen.
 function searchCustomFoods(query) {
   const q = (query || '').trim();
-  if (q.length < 3) return [];
+  if (q.length < 2) return [];
   return customFoodsCache
     .filter((f) => matchesQuery(f.name, q))
     .map((f) => ({
@@ -614,7 +614,7 @@ export function onFoodSearchInput() {
   const query = document.getElementById('food-search-input').value;
   const brand = document.getElementById('food-search-brand-input')?.value || '';
 
-  if (!query || query.trim().length < 3) {
+  if (!query || query.trim().length < 2) {
     resultsEl.innerHTML = '';
     statusEl.style.display = 'none';
     renderFrequentFoods(); // Suchfeld leer -> häufig verwendete Lebensmittel wieder zeigen
