@@ -81,12 +81,42 @@ export async function openWeightHistory() {
   openMo('mo-weight-history');
   try {
     const history = await getMeasurementHistory(currentUser.id, 30);
-    modalBody.innerHTML = history.length
-      ? history.map((h) => `<div class="si" style="border:none">
+    if (!history.length) {
+      modalBody.innerHTML = `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Noch keine Einträge. Ändere dein Gewicht oben, um den Verlauf zu starten.</div>`;
+      return;
+    }
+
+    // Trend: Gesamtveränderung vom ältesten zum neuesten gezeigten Eintrag
+    // (history ist neueste-zuerst sortiert, siehe getMeasurementHistory).
+    const oldest = history[history.length - 1];
+    const newest = history[0];
+    const totalDiff = Math.round((newest.weight_kg - oldest.weight_kg) * 10) / 10;
+    const trendColor = totalDiff > 0 ? 'var(--orange)' : totalDiff < 0 ? 'var(--green)' : 'var(--sub)';
+    const trendSign = totalDiff > 0 ? '+' : '';
+    const trendHtml = history.length > 1
+      ? `<div style="text-align:center;padding:12px;margin-bottom:14px;background:var(--card2);border-radius:12px">
+          <div style="font-size:11px;color:var(--sub)">Trend seit ${new Date(oldest.measured_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</div>
+          <div style="font-size:22px;font-weight:900;color:${trendColor}">${trendSign}${totalDiff} kg</div>
+        </div>`
+      : '';
+
+    // Je Eintrag zusätzlich die Veränderung gegenüber dem NÄCHSTÄLTEREN
+    // Eintrag (nicht dem allerersten) - zeigt den Verlauf Schritt für Schritt.
+    const rows = history.map((h, i) => {
+      const older = history[i + 1];
+      const diff = older ? Math.round((h.weight_kg - older.weight_kg) * 10) / 10 : null;
+      const diffColor = diff > 0 ? 'var(--orange)' : diff < 0 ? 'var(--green)' : 'var(--sub)';
+      const diffSign = diff > 0 ? '+' : '';
+      return `<div class="si" style="border:none">
           <div class="si-l"><div class="si-name">${new Date(h.measured_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div></div>
-          <div style="font-size:15px;font-weight:800">${h.weight_kg} kg</div>
-        </div>`).join('')
-      : `<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">Noch keine Einträge. Ändere dein Gewicht oben, um den Verlauf zu starten.</div>`;
+          <div style="text-align:right">
+            <div style="font-size:15px;font-weight:800">${h.weight_kg} kg</div>
+            ${diff !== null ? `<div style="font-size:11px;color:${diffColor}">${diffSign}${diff} kg</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    modalBody.innerHTML = trendHtml + rows;
   } catch (e) {
     modalBody.innerHTML = `<div style="text-align:center;color:var(--sub);padding:24px;font-size:13px">⚠️ Verlauf konnte nicht geladen werden.</div>`;
   }
