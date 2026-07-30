@@ -320,7 +320,7 @@ export async function addMeal(userId, meal) {
     .insert({
       user_id: userId, meal_name: meal.name, meal_type: meal.type,
       kcal: meal.cal, protein_g: meal.protein, carbs_g: meal.carbs,
-      fat_g: meal.fat, measured_at: new Date().toISOString(),
+      fat_g: meal.fat, measured_at: meal.measuredAtOverride || new Date().toISOString(),
       meal_slot_id: meal.slotId || null,
       food_id: meal.foodId || null,
       grams: meal.grams || null,
