@@ -203,14 +203,15 @@ function renderMealsBySlot() {
     return `<div class="day-card" style="margin-bottom:10px">
       <div class="row" style="align-items:center;margin-bottom:${hasData ? '10px' : '0'}">
         <div style="flex:1">
-          <div class="day-name">${slot.label}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div class="day-name">${slot.label}</div>
+            <button data-rename-slot="${slot.id}" style="width:22px;height:22px;border-radius:6px;border:none;background:transparent;color:var(--sub);font-size:12px;cursor:pointer;flex-shrink:0;padding:0">✏️</button>
+          </div>
           <div style="font-size:13px;font-weight:800;color:var(--orange);margin-top:2px">${slotTotal.cal} kcal</div>
           ${hasData ? macroLegendHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
         </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
           ${hasData ? macroDonutHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
-          <button data-rename-slot="${slot.id}" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--surface);color:var(--sub);font-size:13px;cursor:pointer;flex-shrink:0">✏️</button>
-          <button data-delete-slot="${slot.id}" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--redBg);color:var(--red);font-size:13px;cursor:pointer;flex-shrink:0">✕</button>
           <button data-add-to-slot="${slot.id}" style="width:32px;height:32px;border-radius:10px;border:none;background:var(--accentBg);color:var(--accent2);font-size:18px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>
         </div>
       </div>
@@ -251,9 +252,6 @@ function renderMealsBySlot() {
   document.querySelectorAll('[data-rename-slot]').forEach((btn) => {
     btn.addEventListener('click', () => openSlotRename(btn.dataset.renameSlot));
   });
-  document.querySelectorAll('[data-delete-slot]').forEach((btn) => {
-    btn.addEventListener('click', () => deleteSlot(btn.dataset.deleteSlot));
-  });
 
   document.getElementById('btn-show-add-slot')?.addEventListener('click', () => {
     document.getElementById('btn-show-add-slot').style.display = 'none';
@@ -276,6 +274,17 @@ function renderMealsBySlot() {
 export function openMealModalForSlot(slotId) {
   preselectedSlotId = slotId;
   calendarDayContext = null;
+  resetMealModal();
+  document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
+  openMo('mo-meal');
+}
+
+// Wie openMealModalForSlot, aber zum nachträglichen Hinzufügen aus der
+// Kalender-Tagesansicht heraus (Punkt 2) - behält calendarDayContext bei,
+// damit die neue Mahlzeit mit DIESEM Datum statt "jetzt" gespeichert wird
+// (siehe measuredAtOverride in saveMealFromModal/saveSelectedProduct).
+export function openMealModalForSlotOnDate(slotId) {
+  preselectedSlotId = slotId;
   resetMealModal();
   document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
   openMo('mo-meal');
@@ -415,6 +424,16 @@ export function switchNutritionTab(tab) {
   document.getElementById('nv-today').style.display = tab === 'today' ? '' : 'none';
   document.getElementById('nv-coach').style.display = tab === 'coach' ? '' : 'none';
   document.getElementById('nv-calendar').style.display = tab === 'calendar' ? '' : 'none';
+  // Coach-Analyse ergibt im Kalender (vergangene Tage) keinen Sinn - dort
+  // nur bei "Heute"/"Coach-Plan" zeigen, Karussell währenddessen pausieren.
+  document.getElementById('nutr-insights').style.display = tab === 'calendar' ? 'none' : '';
+  if (tab === 'calendar' && insightsCarouselTimer) { clearInterval(insightsCarouselTimer); insightsCarouselTimer = null; }
+  else if (tab !== 'calendar' && insightsCarouselItems.length > 1 && !insightsCarouselTimer) {
+    insightsCarouselTimer = setInterval(() => {
+      insightsCarouselIndex = (insightsCarouselIndex + 1) % insightsCarouselItems.length;
+      renderInsightSlide();
+    }, 6000);
+  }
   if (tab === 'coach') renderCoachNutritionPlan();
   if (tab === 'calendar') renderNutritionCalendar();
 }
@@ -518,14 +537,17 @@ export async function saveSlotRename() {
   }
 }
 
-async function deleteSlot(slotId) {
+// X-Button im selben Modal - konsistent an einer Stelle statt eines
+// zusätzlichen Symbols direkt in der Mahlzeitenliste.
+export async function deleteSlotFromRenameModal() {
   if (getSlots().length <= 1) { showToast('Mindestens eine Mahlzeit muss bestehen bleiben'); return; }
   if (!confirm('Diese Mahlzeit wirklich löschen? Bereits eingetragene Lebensmittel bleiben erhalten, aber ohne Zuordnung.')) return;
   try {
     assertOnline();
-    const slots = removeMealSlot(getSlots(), slotId);
+    const slots = removeMealSlot(getSlots(), renamingSlotId);
     const updated = await updateProfile(currentUser.id, { meal_slots: slots });
     currentProfile = updated;
+    closeMo('mo-slot-rename');
     await renderNutrition();
     showToast('Mahlzeit gelöscht');
   } catch (e) {
@@ -794,9 +816,11 @@ export async function saveSelectedProduct() {
       name: `${selectedProduct.name} (${grams}g)`,
       cal: scaled.kcal, protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat,
       type: 'Mahlzeit', slotId, foodId: selectedProduct.id, grams,
+      measuredAtOverride: calendarDayContext ? calendarDayContext.dateStr + 'T12:00:00' : undefined,
     });
     closeMo('mo-meal');
-    await renderNutrition();
+    if (calendarDayContext) await showNutritionForDate(calendarDayContext.dateStr);
+    else await renderNutrition();
     showToast('✅ Mahlzeit gespeichert');
   } catch (err) {
     // Echte Fehlermeldung anzeigen statt generischem Text - hilft bei der
@@ -929,7 +953,10 @@ export async function saveMealFromModal() {
     if (editId) {
       await updateMeal(editId, payload);
     } else {
-      await addMeal(currentUser.id, { ...payload, type: 'Mahlzeit' });
+      await addMeal(currentUser.id, {
+        ...payload, type: 'Mahlzeit',
+        measuredAtOverride: calendarDayContext ? calendarDayContext.dateStr + 'T12:00:00' : undefined,
+      });
     }
 
     // Optional: als eigenes Lebensmittel für spätere Suchen speichern.
@@ -995,18 +1022,21 @@ export async function showNutritionForDate(dateStr) {
 
     let slotsHtml = slots.map((slot) => {
       const slotMeals = byslot[slot.id] || [];
-      if (!slotMeals.length) return '';
       const slotTotal = mealTotals(slotMeals);
+      const hasData = slotMeals.length > 0;
       return `<div class="day-card" style="margin-bottom:10px">
-        <div class="row" style="align-items:center;margin-bottom:10px">
+        <div class="row" style="align-items:center;margin-bottom:${hasData ? '10px' : '0'}">
           <div style="flex:1">
             <div class="day-name">${slot.label}</div>
             <div style="font-size:13px;font-weight:800;color:var(--orange);margin-top:2px">${slotTotal.cal} kcal</div>
-            ${macroLegendHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat)}
+            ${hasData ? macroLegendHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
           </div>
-          ${macroDonutHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat)}
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            ${hasData ? macroDonutHTML(slotTotal.protein, slotTotal.carbs, slotTotal.fat) : ''}
+            <button data-add-to-slot-date="${slot.id}" style="width:32px;height:32px;border-radius:10px;border:none;background:var(--accentBg);color:var(--accent2);font-size:18px;font-weight:700;cursor:pointer;flex-shrink:0">+</button>
+          </div>
         </div>
-        ${slotMeals.map((ml) => mealRowHTML(ml)).join('')}
+        ${slotMeals.length ? slotMeals.map((ml) => mealRowHTML(ml)).join('') : `<div style="font-size:12px;color:var(--muted);padding:4px 0 0">Noch nichts eingetragen</div>`}
       </div>`;
     }).join('');
 
@@ -1030,6 +1060,9 @@ export async function showNutritionForDate(dateStr) {
     });
     document.querySelectorAll('#nutrition-review-content [data-del-meal]').forEach((btn) => {
       btn.addEventListener('click', () => confirmDeleteMeal(btn.dataset.delMeal));
+    });
+    document.querySelectorAll('#nutrition-review-content [data-add-to-slot-date]').forEach((btn) => {
+      btn.addEventListener('click', () => openMealModalForSlotOnDate(btn.dataset.addToSlotDate));
     });
 
     openMo('mo-nutrition-review');
