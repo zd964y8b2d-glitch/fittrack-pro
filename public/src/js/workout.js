@@ -626,17 +626,26 @@ function toggleGoalSection(goal) {
 // Benennt einen kompletten Plan-Tag um (wirkt sich auf ALLE Übungen dieses
 // Tages aus, da day_name pro Übung gespeichert wird, aber logisch dem
 // ganzen Tag gehört).
-async function editDayName(day, currentName) {
-  const newName = prompt('Name für diesen Tag:', currentName);
-  if (newName === null || !newName.trim()) return;
-  const dayExercises = myPlanCache.filter((e) => e.plan_day === day);
-  if (!dayExercises.length) return;
+let renamingDay = null; // Tag-Schlüssel (z.B. "A"), während mo-day-rename offen ist
+
+function editDayName(day, currentName) {
+  renamingDay = day;
+  document.getElementById('day-rename-input').value = currentName;
+  openMo('mo-day-rename');
+}
+
+export async function saveDayRename() {
+  const newName = document.getElementById('day-rename-input').value.trim();
+  if (!newName) { showToast('⚠️ Name darf nicht leer sein'); return; }
+  const dayExercises = myPlanCache.filter((e) => e.plan_day === renamingDay);
+  if (!dayExercises.length) { closeMo('mo-day-rename'); return; }
   try {
     assertOnline();
     for (const ex of dayExercises) {
-      await updatePlanExercise(ex.id, { day_name: newName.trim() });
+      await updatePlanExercise(ex.id, { day_name: newName });
     }
     await refreshMyPlan();
+    closeMo('mo-day-rename');
     renderMyPlan();
     showToast('✅ Name geändert');
   } catch (e) {
