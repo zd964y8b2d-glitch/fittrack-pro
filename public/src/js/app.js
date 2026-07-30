@@ -25,7 +25,7 @@ import {
   initNutritionModule, renderNutrition, saveMealFromModal, toggleSaveGenericGrams,
   switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
-  switchNutritionTab, openSlotRename, saveSlotRename,
+  switchNutritionTab, openSlotRename, saveSlotRename, deleteSlotFromRenameModal,
   stepWater, saveWater,
   nutritionCalPrevMonth, nutritionCalNextMonth,
   showNutritionForDate, closeNutritionReview,
@@ -556,6 +556,7 @@ function wireStaticButtons() {
   // Mahlzeit umbenennen (Stift-Symbol je Slot, siehe renderMealsBySlot)
   on('btn-close-slot-rename', 'click', () => closeMo('mo-slot-rename'));
   on('btn-save-slot-rename', 'click', () => saveSlotRename());
+  on('btn-delete-slot-rename', 'click', () => deleteSlotFromRenameModal());
   on('btn-close-weight-history', 'click', () => closeMo('mo-weight-history'));
 
   // Workout-Ende: RPE-Abfrage und Coach-Auswertung
