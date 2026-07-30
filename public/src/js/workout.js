@@ -29,6 +29,9 @@ let activeWTab = 'active';
 let workoutLogCache = []; // Cache der Workout-Logs, für Muster-Erkennung und Verlauf-Anzeige
 let removedEmptyDays = new Set(); // Tage, die der Nutzer bewusst entfernt hat
 let collapsedGoalSections = new Set(); // Ziel-Sektionen, die eingeklappt sind
+let myPlanTipsTimer = null; // Karussell-Intervall für die Tipp-/Warnkarten in "Mein Plan"
+let myPlanTipItems = [];
+let myPlanTipIndex = 0;
 let activeExercises = []; // NUR die Übungen des gestarteten Tages (nicht der komplette Plan)
 
 export function initWorkoutModule(user, profile) {
@@ -389,21 +392,51 @@ function renderCoachPlan() {
 }
 
 // ── MEIN PLAN (frei erstellbar) ─────────────────────────────────────────
+// Zeigt die gesammelten Tipp-/Warnkarten nacheinander (alle 6 Sekunden),
+// statt alle gleichzeitig gestapelt - siehe tipItems in renderMyPlan.
+function startMyPlanTipsCarousel() {
+  if (myPlanTipsTimer) { clearInterval(myPlanTipsTimer); myPlanTipsTimer = null; }
+  if (!myPlanTipItems.length) return;
+  renderMyPlanTipSlide();
+  if (myPlanTipItems.length > 1) {
+    myPlanTipsTimer = setInterval(() => {
+      myPlanTipIndex = (myPlanTipIndex + 1) % myPlanTipItems.length;
+      renderMyPlanTipSlide();
+    }, 6000);
+  }
+}
+
+function renderMyPlanTipSlide() {
+  const el = document.getElementById('wv-mine-tips');
+  if (!el || !myPlanTipItems.length) return;
+  const item = myPlanTipItems[myPlanTipIndex];
+  const dots = myPlanTipItems.length > 1
+    ? `<div style="display:flex;gap:5px;margin-top:8px">${myPlanTipItems.map((_, i) =>
+        `<span style="width:6px;height:6px;border-radius:50%;background:${i === myPlanTipIndex ? (item.color || 'var(--accent2)') : 'var(--border)'}"></span>`).join('')}</div>`
+    : '';
+  el.innerHTML = item.warn
+    ? `<div class="coach-warn" style="${item.color ? `border-color:${item.color}44` : ''}"><div class="cw-icon">${item.icon}</div><div><div class="cw-txt" style="${item.color ? `color:${item.color}` : ''}">${item.txt}</div>${dots}</div></div>`
+    : `<div class="coach-tip"><div class="ct-icon">${item.icon}</div><div>${item.label ? `<div class="ct-lbl">${item.label}</div>` : ''}<div class="ct-txt">${item.txt}</div>${dots}</div></div>`;
+}
+
 async function renderMyPlan() {
   if (!myPlanCache.length) await refreshMyPlan();
   const u = currentProfile;
   const goals = u?.goals?.length ? u.goals : ['muscle'];
   const { byDay, warnings } = analyzeMyPlan(myPlanCache, goals);
   const goalAnalysis = analyzePlanByGoal(myPlanCache, goals);
-  let html = '';
+
+  // Alle Tipp-/Warnkarten werden gesammelt und als Karussell gezeigt (siehe
+  // renderMyPlanTipSlide unten) statt gleichzeitig gestapelt - das wirkte bei
+  // mehreren zutreffenden Hinweisen überladen.
+  const tipItems = [];
 
   if (myPlanCache.length === 0) {
-    html += `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH</div>
-      <div class="ct-txt">Erstelle deinen eigenen Trainingsplan! Deine Ziele bestimmen die Struktur – Kraft- und Ausdauertage werden getrennt angezeigt und analysiert.</div></div></div>`;
+    tipItems.push({ icon: '🏆', label: 'COACH', txt: 'Erstelle deinen eigenen Trainingsplan! Deine Ziele bestimmen die Struktur – Kraft- und Ausdauertage werden getrennt angezeigt und analysiert.' });
   }
 
   if (warnings['_global']) {
-    html += warnings['_global'].map((w) => `<div class="coach-warn" style="margin-bottom:12px"><div class="cw-icon">⚠️</div><div class="cw-txt">${w}</div></div>`).join('');
+    warnings['_global'].forEach((w) => tipItems.push({ icon: '⚠️', txt: w, warn: true }));
   }
 
   // Übungs-Muster-Erkennung (Punkt 4): Lieblingsübungen + Alternativvorschläge
@@ -417,24 +450,24 @@ async function renderMyPlan() {
     const patterns = analyzeExercisePatterns(myPlanCache, snapshots);
 
     if (patterns.favorites.length) {
-      html += `<div class="coach-tip" style="margin-bottom:10px"><div class="ct-icon">⭐</div><div><div class="ct-lbl">DEINE LIEBLINGSÜBUNGEN</div>
-        <div class="ct-txt">${patterns.favorites.map(f => `${f.name} (${f.pct}% deiner Sessions)`).join(', ')}</div></div></div>`;
+      tipItems.push({ icon: '⭐', label: 'DEINE LIEBLINGSÜBUNGEN', txt: patterns.favorites.map(f => `${f.name} (${f.pct}% deiner Sessions)`).join(', ') });
     }
     if (patterns.lowVariation.length) {
-      html += patterns.lowVariation.slice(0, 2).map((lv) =>
-        `<div class="coach-tip" style="margin-bottom:10px"><div class="ct-icon">💡</div><div><div class="ct-lbl">ABWECHSLUNG FÜR ${lv.muscle.toUpperCase()}</div>
-          <div class="ct-txt">Du nutzt bisher nur "${lv.usedName}". Zur Abwechslung: ${lv.alternatives.join(' oder ')}.</div></div></div>`
-      ).join('');
+      patterns.lowVariation.slice(0, 2).forEach((lv) => {
+        tipItems.push({ icon: '💡', label: `ABWECHSLUNG FÜR ${lv.muscle.toUpperCase()}`, txt: `Du nutzt bisher nur "${lv.usedName}". Zur Abwechslung: ${lv.alternatives.join(' oder ')}.` });
+      });
     }
   }
 
   goalAnalysis.forEach(ga => {
     if (ga.warnings.length) {
-      html += ga.warnings.map(w => `<div class="coach-warn" style="margin-bottom:10px;border-color:${ga.color}44">
-        <div class="cw-icon">${ga.icon}</div><div class="cw-txt" style="color:${ga.color}">${w}</div>
-      </div>`).join('');
+      ga.warnings.forEach(w => tipItems.push({ icon: ga.icon, txt: w, warn: true, color: ga.color }));
     }
   });
+
+  myPlanTipItems = tipItems;
+  myPlanTipIndex = 0;
+  let html = tipItems.length ? '<div id="wv-mine-tips" style="margin-bottom:10px"></div>' : '';
 
   const allDays = ['A','B','C','D','E','F','G'];
   const usedDays = [...new Set(myPlanCache.map(e => e.plan_day))].sort();
@@ -527,6 +560,7 @@ async function renderMyPlan() {
   });
 
   document.getElementById('wv-mine').innerHTML = html;
+  startMyPlanTipsCarousel();
   document.querySelectorAll('#wv-mine [data-day]').forEach((btn) => {
     btn.addEventListener('click', () => openAddExToMine(btn.dataset.day, btn.dataset.goal));
   });
