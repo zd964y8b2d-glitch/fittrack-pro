@@ -19,6 +19,7 @@ import {
   initWorkoutModule, wTab, renderWorkout, renderProgression, saveExerciseFromModal, resetProgress,
   switchHistoryTab, historyCalPrevMonth, historyCalNextMonth, jumpToWorkoutLog,
   openManualWorkoutModal, toggleManualWorkoutFields, onManualWorkoutDistanceInput, saveManualWorkout,
+  saveDayRename,
   updateProfileRef as updateWorkoutProfileRef,
 } from './workout.js';
 import {
@@ -557,6 +558,8 @@ function wireStaticButtons() {
   on('btn-close-slot-rename', 'click', () => closeMo('mo-slot-rename'));
   on('btn-save-slot-rename', 'click', () => saveSlotRename());
   on('btn-delete-slot-rename', 'click', () => deleteSlotFromRenameModal());
+  on('btn-close-day-rename', 'click', () => closeMo('mo-day-rename'));
+  on('btn-save-day-rename', 'click', () => saveDayRename());
   on('btn-close-weight-history', 'click', () => closeMo('mo-weight-history'));
 
   // Workout-Ende: RPE-Abfrage und Coach-Auswertung
