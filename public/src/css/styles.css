@@ -198,6 +198,12 @@ body{
 #mo-slot-rename .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;}
 #mo-day-rename{align-items:flex-start;}
 #mo-day-rename .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;}
+#mo-ex{align-items:flex-start;}
+#mo-ex .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;max-height:calc(92dvh - 40px - var(--safe-top));}
+#mo-goal{align-items:flex-start;}
+#mo-goal .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;}
+#mo-manual-workout{align-items:flex-start;}
+#mo-manual-workout .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;}
 .mh{width:34px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
 .mt{font-size:18px;font-weight:800;margin-bottom:16px;letter-spacing:-.3px;}
 .mc{position:absolute;right:20px;top:24px;background:var(--card2);border:none;border-radius:9px;width:29px;height:29px;cursor:pointer;color:var(--sub);font-size:14px;}
