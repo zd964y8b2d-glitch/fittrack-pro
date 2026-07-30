@@ -146,6 +146,7 @@ body{
 .tab-item.active{background:var(--accent);color:#fff;}
 
 .day-card{background:var(--card2);border:1px solid var(--border);border-radius:15px;padding:14px 16px;margin-bottom:10px;}
+.add-inline-btn{display:block;width:100%;padding:14px;border:2px dashed var(--border);border-radius:14px;background:transparent;color:var(--accent2);font-weight:700;font-size:14px;cursor:pointer;margin-top:8px;}
 .day-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
 .day-name{font-size:14px;font-weight:800;}
 .day-focus{font-size:11px;color:var(--sub);}
@@ -193,6 +194,10 @@ body{
    "springen". */
 #mo-meal{align-items:flex-start;}
 #mo-meal .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;max-height:calc(92dvh - 40px - var(--safe-top));}
+#mo-slot-rename{align-items:flex-start;}
+#mo-slot-rename .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;}
+#mo-day-rename{align-items:flex-start;}
+#mo-day-rename .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;}
 .mh{width:34px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
 .mt{font-size:18px;font-weight:800;margin-bottom:16px;letter-spacing:-.3px;}
 .mc{position:absolute;right:20px;top:24px;background:var(--card2);border:none;border-radius:9px;width:29px;height:29px;cursor:pointer;color:var(--sub);font-size:14px;}
