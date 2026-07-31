@@ -336,7 +336,7 @@ async function showWorkoutEvaluation(rpe, burnedKcal, durationMin) {
   openMo('mo-workout-eval');
 }
 
-// Zeigt die Coach-Bewertungen dieser Session nacheinander (alle 6 Sekunden)
+// Zeigt die Coach-Bewertungen dieser Session nacheinander (alle 12 Sekunden)
 // statt alle gleichzeitig gestapelt - analog zu Ernährung und Mein Plan.
 let workoutEvalTimer = null;
 let workoutEvalLines = [];
@@ -352,7 +352,7 @@ function startWorkoutEvalCarousel(lines) {
     workoutEvalTimer = setInterval(() => {
       workoutEvalIndex = (workoutEvalIndex + 1) % workoutEvalLines.length;
       renderWorkoutEvalSlide();
-    }, 6000);
+    }, 12000);
   }
 }
 
@@ -424,7 +424,7 @@ function renderCoachPlan() {
 }
 
 // ── MEIN PLAN (frei erstellbar) ─────────────────────────────────────────
-// Zeigt die gesammelten Tipp-/Warnkarten nacheinander (alle 6 Sekunden),
+// Zeigt die gesammelten Tipp-/Warnkarten nacheinander (alle 12 Sekunden),
 // statt alle gleichzeitig gestapelt - siehe tipItems in renderMyPlan.
 function startMyPlanTipsCarousel() {
   if (myPlanTipsTimer) { clearInterval(myPlanTipsTimer); myPlanTipsTimer = null; }
@@ -434,7 +434,7 @@ function startMyPlanTipsCarousel() {
     myPlanTipsTimer = setInterval(() => {
       myPlanTipIndex = (myPlanTipIndex + 1) % myPlanTipItems.length;
       renderMyPlanTipSlide();
-    }, 6000);
+    }, 12000);
   }
 }
 

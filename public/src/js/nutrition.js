@@ -138,7 +138,7 @@ export async function saveWater() {
 // Tagessummen) - nicht mehr zusätzlich pro Mahlzeiten-Slot. Die Slot-Analyse
 // liefert ergänzend nur noch Verhaltens-Muster (z.B. häufig gegessene
 // Lebensmittel je Slot), keine eigene Ziel-Bewertung mehr.
-// Zeigt die Analysen nacheinander als Karussell (alle 6 Sekunden), statt
+// Zeigt die Analysen nacheinander als Karussell (alle 12 Sekunden), statt
 // alle gleichzeitig gestapelt - vorher wirkte die Seite bei mehreren
 // zutreffenden Analysen überladen.
 let insightsCarouselTimer = null;
@@ -169,7 +169,7 @@ async function renderTrendInsights(dailyMacros) {
       insightsCarouselTimer = setInterval(() => {
         insightsCarouselIndex = (insightsCarouselIndex + 1) % insightsCarouselItems.length;
         renderInsightSlide();
-      }, 6000);
+      }, 12000);
     }
   } catch (e) {
     el.innerHTML = '';
@@ -440,7 +440,7 @@ export function switchNutritionTab(tab) {
     insightsCarouselTimer = setInterval(() => {
       insightsCarouselIndex = (insightsCarouselIndex + 1) % insightsCarouselItems.length;
       renderInsightSlide();
-    }, 6000);
+    }, 12000);
   }
   if (tab === 'coach') renderCoachNutritionPlan();
   if (tab === 'calendar') renderNutritionCalendar();
