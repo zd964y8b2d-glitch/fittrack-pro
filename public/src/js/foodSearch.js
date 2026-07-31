@@ -41,6 +41,7 @@ function normalizeProduct(p) {
       protein: round1(n.proteins_100g ?? 0),
       carbs: round1(n.carbohydrates_100g ?? 0),
       fat: round1(n.fat_100g ?? 0),
+      fiber: round1(n.fiber_100g ?? 0),
     },
   };
 }
@@ -222,5 +223,6 @@ export function scaleNutrients(per100, grams) {
     protein: round1(per100.protein * factor),
     carbs: round1(per100.carbs * factor),
     fat: round1(per100.fat * factor),
+    fiber: round1((per100.fiber || 0) * factor),
   };
 }

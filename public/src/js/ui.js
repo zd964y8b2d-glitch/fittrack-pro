@@ -162,14 +162,16 @@ export function mealTotals(meals) {
       protein: a.protein + (m.protein_g || 0),
       carbs: a.carbs + (m.carbs_g || 0),
       fat: a.fat + (m.fat_g || 0),
+      fiber: a.fiber + (m.fiber_g || 0),
     }),
-    { cal: 0, protein: 0, carbs: 0, fat: 0 }
+    { cal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
   );
   return {
     cal: Math.round(totals.cal),
     protein: round1(totals.protein),
     carbs: round1(totals.carbs),
     fat: round1(totals.fat),
+    fiber: round1(totals.fiber),
   };
 }
 

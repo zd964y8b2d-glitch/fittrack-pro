@@ -274,10 +274,10 @@ export async function getCustomFoods(userId) {
   return data || [];
 }
 
-export async function addCustomFood(userId, { name, kcal, protein, carbs, fat }) {
+export async function addCustomFood(userId, { name, kcal, protein, carbs, fat, fiber }) {
   const { data, error } = await supabase
     .from('custom_foods')
-    .insert({ user_id: userId, name, kcal, protein, carbs, fat })
+    .insert({ user_id: userId, name, kcal, protein, carbs, fat, fiber: fiber ?? null })
     .select().single();
   if (error) throw error;
   return data;
@@ -320,7 +320,8 @@ export async function addMeal(userId, meal) {
     .insert({
       user_id: userId, meal_name: meal.name, meal_type: meal.type,
       kcal: meal.cal, protein_g: meal.protein, carbs_g: meal.carbs,
-      fat_g: meal.fat, measured_at: meal.measuredAtOverride || new Date().toISOString(),
+      fat_g: meal.fat, fiber_g: meal.fiber ?? null,
+      measured_at: meal.measuredAtOverride || new Date().toISOString(),
       meal_slot_id: meal.slotId || null,
       food_id: meal.foodId || null,
       grams: meal.grams || null,
@@ -335,7 +336,8 @@ export async function updateMeal(id, meal) {
     .from('body_measurements')
     .update({
       meal_name: meal.name, kcal: meal.cal, protein_g: meal.protein,
-      carbs_g: meal.carbs, fat_g: meal.fat, meal_slot_id: meal.slotId || null,
+      carbs_g: meal.carbs, fat_g: meal.fat, fiber_g: meal.fiber ?? null,
+      meal_slot_id: meal.slotId || null,
       grams: meal.grams || null,
     })
     .eq('id', id)
@@ -363,7 +365,7 @@ export async function getFrequentFoods(userId, days = 30, limit = 10) {
 
   const { data, error } = await supabase
     .from('body_measurements')
-    .select('meal_name, kcal, protein_g, carbs_g, fat_g, grams, measured_at')
+    .select('meal_name, kcal, protein_g, carbs_g, fat_g, fiber_g, grams, measured_at')
     .eq('user_id', userId)
     .not('meal_name', 'is', null)
     .gte('measured_at', since.toISOString())
@@ -386,6 +388,7 @@ export async function getFrequentFoods(userId, days = 30, limit = 10) {
       protein: g.latest.protein_g,
       carbs: g.latest.carbs_g,
       fat: g.latest.fat_g,
+      fiber: g.latest.fiber_g,
       grams: g.latest.grams,
     }));
 }
