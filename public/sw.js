@@ -10,13 +10,14 @@
 //     Ernährungsdaten müssen immer aktuell/online sein, sonst entstehen
 //     Konflikte beim Schreiben. Bei fehlendem Netz schlägt der Request
 //     einfach fehl und die App zeigt eine Offline-Meldung (siehe app.js).
-//   - v20260620134146 wird von build.sh bei jedem Deploy automatisch neu
-//     gesetzt → der Browser erkennt eine neue Service-Worker-Datei → alte
-//     Caches werden im "activate"-Schritt gelöscht → Nutzer bekommen die
-//     neue Version automatisch beim nächsten App-Start (Anforderung 10).
+//   - CACHE_VERSION wird bei jedem Release von Hand hochgezählt (es gibt
+//     keinen Build-Schritt, der das automatisch ersetzt) → sobald sich der
+//     String ändert, erkennt der Browser eine neue Service-Worker-Datei →
+//     alte Caches werden im "activate"-Schritt gelöscht → Nutzer bekommen
+//     die neue Version automatisch beim nächsten App-Start (Anforderung 10).
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = '__CACHE_VERSION__';
+const CACHE_VERSION = 'beta-2026.07.31.2';
 const CACHE_NAME = `fittrack-shell-${CACHE_VERSION}`;
 
 // App-Shell: alles, was für den Grundbetrieb ohne Netz nötig ist.

@@ -1,0 +1,42 @@
+#!/bin/sh
+# Zählt CACHE_VERSION in public/sw.js automatisch hoch, wenn ein Commit
+# Dateien unter public/ ändert - es gibt keinen Build-Schritt (kein
+# build.sh, kein CI), der das sonst übernehmen würde (siehe Kommentar in
+# public/sw.js). Ohne diesen Bump würde der Service Worker eine geänderte
+# App nie als "neue Version" erkennen und Nutzer bekämen Updates nicht
+# automatisch (siehe Anforderung 10 im sw.js-Kommentar).
+#
+# Format: beta-YYYY.MM.DD, bei mehreren Commits am selben Tag zusätzlich
+# ein Zähler (beta-YYYY.MM.DD.2, .3, ...).
+#
+# Aktivierung (einmalig pro Klon, da .git/ selbst nicht mitversioniert wird):
+#   git config core.hooksPath .githooks
+
+SW_FILE="public/sw.js"
+[ -f "$SW_FILE" ] || exit 0
+
+# Nur bumpen, wenn tatsächlich etwas unter public/ (außer sw.js selbst)
+# commitet wird - vermeidet unnötige Versionssprünge bei reinen
+# Doku-/Skript-Änderungen außerhalb der ausgelieferten App.
+git diff --cached --name-only | grep -q '^public/' || exit 0
+git diff --cached --name-only | grep -qv '^public/sw\.js$' || exit 0
+
+TODAY=$(date +%Y.%m.%d)
+CURRENT=$(grep -o "CACHE_VERSION = '[^']*'" "$SW_FILE" | sed "s/CACHE_VERSION = '//;s/'//")
+
+case "$CURRENT" in
+  beta-"$TODAY")
+    NEW="beta-${TODAY}.2"
+    ;;
+  beta-"$TODAY".*)
+    N=$(echo "$CURRENT" | sed "s/beta-${TODAY}\.//")
+    NEW="beta-${TODAY}.$((N + 1))"
+    ;;
+  *)
+    NEW="beta-${TODAY}"
+    ;;
+esac
+
+sed -i "s/CACHE_VERSION = '[^']*'/CACHE_VERSION = '${NEW}'/" "$SW_FILE"
+git add "$SW_FILE"
+echo "pre-commit: sw.js CACHE_VERSION -> ${NEW}"

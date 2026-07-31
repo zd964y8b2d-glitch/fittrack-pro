@@ -184,7 +184,9 @@ function registerServiceWorker() {
         .then((text) => {
           const match = text.match(/CACHE_VERSION\s*=\s*['"]([^'"]+)['"]/);
           const el = document.getElementById('app-version-display');
-          if (el) el.textContent = match ? `Version ${match[1]}` : '';
+          // CACHE_VERSION ist intern "beta-2026.07.31" (Cache-Name-tauglich,
+          // keine Leerzeichen) - für die Anzeige in "Beta 2026.07.31" umformen.
+          if (el) el.textContent = match ? match[1].replace(/^beta-/i, 'Beta ') : '';
         })
         .catch(() => {});
     };
