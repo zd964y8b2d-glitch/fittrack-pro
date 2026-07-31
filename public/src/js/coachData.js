@@ -387,7 +387,8 @@ export function calcMacros(profile, goals, days) {
   const protein = Math.round(weight * resolveProteinFactor(list));
   const fat = Math.round((kcal * 0.25) / 9);
   const carbs = Math.round((kcal - protein * 4 - fat * 9) / 4);
-  return { kcal, protein, carbs, fat };
+  const fiber = Math.round((kcal / 1000) * 14);
+  return { kcal, protein, carbs, fat, fiber };
 }
 
 // ── Coach-Tipps ──────────────────────────────────────────────────────────

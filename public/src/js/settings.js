@@ -41,6 +41,7 @@ export function renderSettings() {
     si('Protein', u.macro_protein + ' g', 'm_protein', 'Protein (g)', 'number', u.macro_protein) +
     si('Kohlenhydrate', u.macro_carbs + ' g', 'm_carbs', 'Kohlenhydrate (g)', 'number', u.macro_carbs) +
     si('Fett', u.macro_fat + ' g', 'm_fat', 'Fett (g)', 'number', u.macro_fat) +
+    si('Ballaststoffe', u.macro_fiber + ' g', 'm_fiber', 'Ballaststoffe (g)', 'number', u.macro_fiber) +
     `<div class="si" style="border:none"><div class="si-l"><div class="si-name">Coach-Makros neu berechnen</div><div class="si-val">Optimal für dein Ziel</div></div><div class="si-r" id="recalc-btn">↻</div></div>`;
 
   document.getElementById('set-train').innerHTML =
@@ -212,6 +213,7 @@ export async function saveGoalEdit() {
       else if (_editKey === 'm_protein') patch.macro_protein = val;
       else if (_editKey === 'm_carbs') patch.macro_carbs = val;
       else if (_editKey === 'm_fat') patch.macro_fat = val;
+      else if (_editKey === 'm_fiber') patch.macro_fiber = val;
     }
     const updated = await updateProfile(currentUser.id, patch);
     currentProfile = updated;
@@ -236,6 +238,7 @@ async function recalc() {
     const macros = calcMacros(currentProfile, currentProfile.goals, currentProfile.training_days);
     const updated = await updateProfile(currentUser.id, {
       macro_kcal: macros.kcal, macro_protein: macros.protein, macro_carbs: macros.carbs, macro_fat: macros.fat,
+      macro_fiber: macros.fiber,
     });
     currentProfile = updated;
     renderSettings();

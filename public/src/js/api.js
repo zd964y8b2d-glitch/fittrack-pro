@@ -12,7 +12,7 @@ export async function getProfile(userId) {
       id: userId, name: '', age: null, weight_kg: null, height_cm: null,
       sex: 'male', goals: [], training_types: [], level: null,
       training_days: 4, macro_kcal: null, macro_protein: null,
-      macro_carbs: null, macro_fat: null, onboarding_done: false,
+      macro_carbs: null, macro_fat: null, macro_fiber: null, onboarding_done: false,
     };
   }
   return data;

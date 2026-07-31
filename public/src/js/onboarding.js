@@ -189,6 +189,7 @@ async function finishOnboarding() {
       training_days: obData.days,
       macro_kcal: obData.macros.kcal, macro_protein: obData.macros.protein,
       macro_carbs: obData.macros.carbs, macro_fat: obData.macros.fat,
+      macro_fiber: obData.macros.fiber,
       onboarding_done: true,
     });
 
