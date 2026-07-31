@@ -10,7 +10,7 @@ import { ringHTML, pbar, showToast, closeMo, openMo, confirmDialog, mealTotals }
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
 import { matchesQuery } from './genericFoods.js';
-import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns } from './coachData.js';
+import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns, comboCategoryForSlot, comboTemplateCount, buildFoodCombo } from './coachData.js';
 import { buildCalendarGrid, MONTH_NAMES } from './calendar.js';
 
 let currentUser = null;
@@ -487,6 +487,11 @@ export function nutritionCalNextMonth() {
   renderNutritionCalendar();
 }
 
+// Merkt sich pro Slot, welche Lebensmittel-Kombination gerade angezeigt wird
+// (per "Andere Kombination"-Button durchwechselbar) - rein clientseitig,
+// kein Speicherbedarf, wird beim Verlassen des Tabs zurückgesetzt.
+let coachComboIndex = {};
+
 function renderCoachNutritionPlan() {
   const dailyMacros = {
     kcal: currentProfile.macro_kcal || 2000,
@@ -512,7 +517,38 @@ function renderCoachNutritionPlan() {
           </div>
           ${macroDonutHTML(slot.protein, slot.carbs, slot.fat)}
         </div>
+        ${foodComboHTML(slot)}
       </div>`).join('')}`;
+
+  document.querySelectorAll('[data-combo-shuffle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slotId = btn.dataset.comboShuffle;
+      coachComboIndex[slotId] = (coachComboIndex[slotId] || 0) + 1;
+      renderCoachNutritionPlan();
+    });
+  });
+}
+
+// Zeigt zum Makro-Vorschlag eines Slots eine konkrete Lebensmittel-
+// Kombination mit Grammangaben (siehe buildFoodCombo in coachData.js).
+function foodComboHTML(slot) {
+  const category = comboCategoryForSlot(slot);
+  const templateCount = comboTemplateCount(category);
+  const index = coachComboIndex[slot.id] || 0;
+  const combo = buildFoodCombo({ protein: slot.protein, carbs: slot.carbs, fat: slot.fat }, category, index);
+  if (!combo) return '';
+
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+    ${combo.items.map((it) => `
+      <div class="row" style="align-items:center;margin-bottom:4px">
+        <div style="flex:1;font-size:12px">${it.name} <span style="color:var(--sub)">· ${it.grams}g</span></div>
+        <div style="font-size:11px;color:var(--sub);flex-shrink:0">${it.kcal} kcal</div>
+      </div>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+      <div style="font-size:10px;color:var(--muted)">≈ ${combo.totals.kcal} kcal · P ${combo.totals.protein}g · K ${combo.totals.carbs}g · F ${combo.totals.fat}g</div>
+      ${templateCount > 1 ? `<button data-combo-shuffle="${slot.id}" style="border:none;background:transparent;color:var(--accent2);font-size:11px;font-weight:700;cursor:pointer;padding:2px 4px">🔀 Andere Kombination</button>` : ''}
+    </div>
+  </div>`;
 }
 
 // ── SLOT-VERWALTUNG (Umbenennen/Hinzufügen/Entfernen je einzelnem Slot) ──

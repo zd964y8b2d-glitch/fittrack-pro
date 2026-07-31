@@ -7,6 +7,7 @@
 // Nutzer-spezifische Daten (eigener Plan, Verlauf, Mahlzeiten) liegen
 // dagegen in Supabase – siehe api.js.
 // ═══════════════════════════════════════════════════════════════════════════
+import { GENERIC_FOODS } from './genericFoods.js';
 
 export const MUSCLE_COLORS = {
   Brust: '#E74C3C', Rücken: '#3498DB', Schultern: '#9B59B6',
@@ -577,6 +578,132 @@ export function buildCoachNutritionPlan(dailyMacros, slots) {
     carbs: Math.round(dailyMacros.carbs * slot.pct),
     fat: Math.round(dailyMacros.fat * slot.pct),
   }));
+}
+
+// ── LEBENSMITTEL-KOMBINATIONEN JE MAHLZEIT ──────────────────────────────
+// Schlägt zu den Makros eines Slots (aus buildCoachNutritionPlan) konkrete
+// Lebensmittel samt Grammangabe vor, statt nur abstrakte Zahlen zu zeigen.
+// Jede Vorlage hat eine Protein- und eine Kohlenhydratquelle, deren Mengen
+// per 2x2-Gleichungssystem so berechnet werden, dass ihre Summe (abzüglich
+// der fixen Extras wie Gemüse/Obst) möglichst genau Protein- UND
+// Kohlenhydrat-Ziel trifft. Das Fett-Ziel wird nur grob mitbedient (optionale
+// Fettquelle für den Rest) - eine exakte 3-Variablen-Lösung würde oft
+// unrealistische Mengen erzwingen (z.B. negative oder sehr große Grammzahlen).
+const foodByName = Object.fromEntries(GENERIC_FOODS.map((f) => [f.name, f]));
+
+const COMBO_TEMPLATES = {
+  breakfast: [
+    { protein: 'Skyr', carb: 'Haferflocken', extras: [{ name: 'Heidelbeeren', grams: 80 }] },
+    { protein: 'Ei', carb: 'Vollkornbrot', extras: [{ name: 'Tomate', grams: 80 }], fat: 'Avocado' },
+    { protein: 'Magerquark', carb: 'Haferflocken', extras: [{ name: 'Banane', grams: 100 }] },
+  ],
+  main: [
+    { protein: 'Hähnchenbrust, gekocht', carb: 'Reis, weiß (gekocht)', extras: [{ name: 'Brokkoli', grams: 150 }], fat: 'Olivenöl' },
+    { protein: 'Lachs, roh', carb: 'Süßkartoffel, gekocht', extras: [{ name: 'Spinat', grams: 100 }] },
+    { protein: 'Rinderhack, mager (roh)', carb: 'Nudeln, gekocht', extras: [{ name: 'Paprika (rot)', grams: 100 }] },
+    { protein: 'Tofu', carb: 'Quinoa, gekocht', extras: [{ name: 'Zucchini', grams: 120 }], fat: 'Olivenöl' },
+  ],
+  snack: [
+    { protein: 'Magerquark', carb: 'Banane', extras: [], fat: 'Mandeln' },
+    { protein: 'Hüttenkäse', carb: 'Apfel', extras: [] },
+    { protein: 'Skyr', carb: 'Haferflocken', extras: [], fat: 'Mandeln' },
+  ],
+};
+
+// Ordnet einen Slot (Standard- oder benutzerdefiniert) einer Vorlagen-
+// Kategorie zu - anhand von id/label, da eigene Slots keinen festen Typ haben.
+export function comboCategoryForSlot(slot) {
+  const id = (slot.id || '').toLowerCase();
+  const label = (slot.label || '').toLowerCase();
+  if (id.includes('snack') || label.includes('snack')) return 'snack';
+  if (id === 'breakfast' || label.includes('frühstück')) return 'breakfast';
+  return 'main';
+}
+
+export function comboTemplateCount(category) {
+  return (COMBO_TEMPLATES[category] || COMBO_TEMPLATES.main).length;
+}
+
+function scaledMacros(food, grams) {
+  const f = grams / 100;
+  return {
+    kcal: Math.round(food.per100.kcal * f),
+    protein: Math.round(food.per100.protein * f * 10) / 10,
+    carbs: Math.round(food.per100.carbs * f * 10) / 10,
+    fat: Math.round(food.per100.fat * f * 10) / 10,
+  };
+}
+
+// Rundet auf 5g genau und hält die Menge in einer alltagstauglichen Spanne
+// (keine 3g-Häppchen, keine 900g-Portionen als "Vorschlag").
+function clampGrams(g, min = 20, max = 400) {
+  return Math.round(Math.max(min, Math.min(max, g)) / 5) * 5;
+}
+
+// Berechnet für einen Slot (Makro-Ziel) + Vorlagen-Kategorie + Template-Index
+// eine konkrete Lebensmittel-Kombination mit Grammangaben.
+export function buildFoodCombo(slotMacros, category, templateIndex = 0) {
+  const templates = COMBO_TEMPLATES[category] || COMBO_TEMPLATES.main;
+  const tpl = templates[templateIndex % templates.length];
+  const proteinFood = foodByName[tpl.protein];
+  const carbFood = foodByName[tpl.carb];
+  if (!proteinFood || !carbFood) return null;
+
+  let remProtein = slotMacros.protein;
+  let remCarbs = slotMacros.carbs;
+
+  const extraItems = (tpl.extras || []).map((ex) => {
+    const food = foodByName[ex.name];
+    const macros = scaledMacros(food, ex.grams);
+    remProtein -= macros.protein;
+    remCarbs -= macros.carbs;
+    return { name: food.name, grams: ex.grams, ...macros };
+  });
+  remProtein = Math.max(remProtein, 0);
+  remCarbs = Math.max(remCarbs, 0);
+
+  // 2x2-Gleichungssystem (Cramer'sche Regel):
+  // a1*x + b1*y = remProtein, a2*x + b2*y = remCarbs
+  // x = Gramm Proteinquelle, y = Gramm Kohlenhydratquelle
+  const a1 = proteinFood.per100.protein / 100, a2 = proteinFood.per100.carbs / 100;
+  const b1 = carbFood.per100.protein / 100, b2 = carbFood.per100.carbs / 100;
+  const det = a1 * b2 - b1 * a2;
+
+  let gProtein, gCarb;
+  if (Math.abs(det) < 1e-6) {
+    gProtein = a1 > 0 ? remProtein / a1 : 100;
+    gCarb = b2 > 0 ? remCarbs / b2 : 100;
+  } else {
+    gProtein = (remProtein * b2 - remCarbs * b1) / det;
+    gCarb = (a1 * remCarbs - a2 * remProtein) / det;
+  }
+  gProtein = clampGrams(gProtein);
+  gCarb = clampGrams(gCarb);
+
+  const items = [
+    { name: proteinFood.name, grams: gProtein, ...scaledMacros(proteinFood, gProtein) },
+    { name: carbFood.name, grams: gCarb, ...scaledMacros(carbFood, gCarb) },
+    ...extraItems,
+  ];
+
+  // Fettquelle nur ergänzen, wenn nach den Hauptzutaten noch spürbar Fett
+  // im Ziel offen ist (die Hauptzutaten bringen meist schon einiges mit).
+  if (tpl.fat) {
+    const fatFood = foodByName[tpl.fat];
+    const contributedFat = items.reduce((s, it) => s + it.fat, 0);
+    const remainingFat = slotMacros.fat - contributedFat;
+    if (fatFood && remainingFat > 4) {
+      const gFat = clampGrams((remainingFat * 100) / fatFood.per100.fat, 5, 50);
+      items.push({ name: fatFood.name, grams: gFat, ...scaledMacros(fatFood, gFat) });
+    }
+  }
+
+  const totals = items.reduce((t, it) => ({
+    kcal: t.kcal + it.kcal, protein: Math.round((t.protein + it.protein) * 10) / 10,
+    carbs: Math.round((t.carbs + it.carbs) * 10) / 10, fat: Math.round((t.fat + it.fat) * 10) / 10,
+  }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+
+  return { items, totals, templateCount: templates.length };
 }
 
 // Fügt einen neuen, individuellen Slot hinzu und verteilt die Prozentanteile
