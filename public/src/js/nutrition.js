@@ -64,6 +64,11 @@ export async function renderNutrition() {
     protein: currentProfile.macro_protein || 150,
     carbs: currentProfile.macro_carbs || 200,
     fat: currentProfile.macro_fat || 60,
+    // Kein individuelles Coach-Ziel wie bei den anderen Makros - allgemeine
+    // Ernährungsempfehlung (DGE u.a.: ~30g/Tag für Erwachsene), da Ballast-
+    // stoffe kaum kalorienrelevant sind und nicht Teil der Kalorienbilanz-
+    // Berechnung des Coaches sind.
+    fiber: 30,
   };
 
   // Eingabefelder mit aktuellem Stand befüllen
@@ -82,7 +87,8 @@ export async function renderNutrition() {
     </div>
     ${pbar('Protein ' + t.protein + 'g / ' + m.protein + 'g', t.protein, m.protein, 'var(--accent)')}
     ${pbar('Kohlenhydrate ' + t.carbs + 'g / ' + m.carbs + 'g', t.carbs, m.carbs, 'var(--green)')}
-    ${pbar('Fett ' + t.fat + 'g / ' + m.fat + 'g', t.fat, m.fat, 'var(--orange)')}`;
+    ${pbar('Fett ' + t.fat + 'g / ' + m.fat + 'g', t.fat, m.fat, 'var(--orange)')}
+    ${pbar('Ballaststoffe ' + t.fiber + 'g / ' + m.fiber + 'g', t.fiber, m.fiber, 'var(--blue)')}`;
 
   await renderTrendInsights(m);
   renderMealsBySlot();
@@ -356,10 +362,11 @@ function mealRowHTML(ml, readOnly = false) {
       <div style="flex:1">
         <div style="font-size:10px;color:var(--sub);font-weight:700;margin-bottom:3px">${new Date(ml.measured_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</div>
         <div style="font-size:14px;font-weight:700">${ml.meal_name}</div>
-        <div style="display:flex;gap:10px;margin-top:4px">
+        <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--sub)">P: ${ml.protein_g}g</span>
           <span style="font-size:11px;color:var(--sub)">K: ${ml.carbs_g}g</span>
           <span style="font-size:11px;color:var(--sub)">F: ${ml.fat_g}g</span>
+          ${ml.fiber_g ? `<span style="font-size:11px;color:var(--sub)">B: ${ml.fiber_g}g</span>` : ''}
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0;margin-left:8px">
@@ -394,6 +401,7 @@ function openEditMeal(mealId) {
   document.getElementById('mn-p').value = meal.protein_g;
   document.getElementById('mn-c').value = meal.carbs_g;
   document.getElementById('mn-f').value = meal.fat_g;
+  document.getElementById('mn-fiber').value = meal.fiber_g || '';
   document.getElementById('mn-edit-id').value = meal.id;
   populateSlotSelect('mn-slot-select', meal.meal_slot_id);
   document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit bearbeiten';
@@ -584,7 +592,7 @@ function resetMealModal() {
   document.getElementById('food-search-results').innerHTML = '';
   document.getElementById('food-search-status').style.display = 'none';
   document.getElementById('mn-edit-id').value = '';
-  ['mn-name', 'mn-cal', 'mn-p', 'mn-c', 'mn-f'].forEach((id) => (document.getElementById(id).value = ''));
+  ['mn-name', 'mn-cal', 'mn-p', 'mn-c', 'mn-f', 'mn-fiber'].forEach((id) => (document.getElementById(id).value = ''));
   document.getElementById('mn-save-generic').checked = false;
   document.getElementById('mn-generic-grams').value = '100';
   document.getElementById('mn-generic-grams-wrap').style.display = 'none';
@@ -655,6 +663,7 @@ function frequentFoodToProduct(f) {
       protein: Math.round((f.protein || 0) * factor * 10) / 10,
       carbs: Math.round((f.carbs || 0) * factor * 10) / 10,
       fat: Math.round((f.fat || 0) * factor * 10) / 10,
+      fiber: Math.round((f.fiber || 0) * factor * 10) / 10,
     },
   };
 }
@@ -693,7 +702,7 @@ function searchCustomFoods(query) {
       name: f.name,
       brand: 'Eigenes Lebensmittel',
       imageUrl: null,
-      per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat },
+      per100: { kcal: f.kcal, protein: f.protein, carbs: f.carbs, fat: f.fat, fiber: f.fiber || 0 },
     }));
 }
 
@@ -814,7 +823,7 @@ export async function saveSelectedProduct() {
     assertOnline();
     await addMeal(currentUser.id, {
       name: `${selectedProduct.name} (${grams}g)`,
-      cal: scaled.kcal, protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat,
+      cal: scaled.kcal, protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat, fiber: scaled.fiber,
       type: 'Mahlzeit', slotId, foodId: selectedProduct.id, grams,
       measuredAtOverride: calendarDayContext ? calendarDayContext.dateStr + 'T12:00:00' : undefined,
     });
@@ -946,7 +955,9 @@ export async function saveMealFromModal() {
   const protein = parseInt(document.getElementById('mn-p').value) || 0;
   const carbs = parseInt(document.getElementById('mn-c').value) || 0;
   const fat = parseInt(document.getElementById('mn-f').value) || 0;
-  const payload = { name, cal, protein, carbs, fat, slotId };
+  const fiberRaw = document.getElementById('mn-fiber').value;
+  const fiber = fiberRaw ? parseInt(fiberRaw) || 0 : null;
+  const payload = { name, cal, protein, carbs, fat, fiber, slotId };
 
   try {
     assertOnline();
@@ -974,6 +985,7 @@ export async function saveMealFromModal() {
           protein: Math.round(protein * factor * 10) / 10,
           carbs: Math.round(carbs * factor * 10) / 10,
           fat: Math.round(fat * factor * 10) / 10,
+          fiber: fiber !== null ? Math.round(fiber * factor * 10) / 10 : null,
         });
         customFoodsCache = [newFood, ...customFoodsCache];
       } catch (e) {
