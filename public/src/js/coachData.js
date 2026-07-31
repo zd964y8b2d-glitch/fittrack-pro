@@ -701,10 +701,9 @@ export function evaluateWorkoutSession(workoutLogs, planDaysPerWeek) {
     lines.push(`Gute Trainingsdauer von ${latest.duration_min} Minuten – das liegt im effektiven Bereich.`);
   }
 
-  // ── Anstrengung (RPE) dieser Session ─────────────────────────────────
-  if (latest.rpe) {
-    lines.push(`Du hast das Training als "${RPE_LABELS[latest.rpe]}" eingeschätzt.`);
-  }
+  // Anstrengung (RPE) wird bereits als eigene Statistik-Kachel oben in der
+  // Zusammenfassung gezeigt ("Einschätzung") - hier nicht nochmal als
+  // separate Coach-Bewertung wiederholen.
 
   // ── Konsistenz der Anstrengung (braucht mehr Historie) ───────────────
   if (confidence !== 'low') {
