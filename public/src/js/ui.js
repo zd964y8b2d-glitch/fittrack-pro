@@ -82,6 +82,32 @@ export function showUpdateOverlay() {
 export function openMo(id) { document.getElementById(id)?.classList.add('open'); }
 export function closeMo(id) { document.getElementById(id)?.classList.remove('open'); }
 
+// Ersetzt das native, browsereigene confirm()-Fenster durch ein zum Rest
+// der App passendes Modal. Nutzung: `if (!(await confirmDialog('Text?'))) return;`
+// - verhält sich wie confirm() (Promise<boolean> statt synchronem boolean),
+// daher an jeder Aufrufstelle ein "await" davor nötig.
+export function confirmDialog(message) {
+  return new Promise((resolve) => {
+    const msgEl = document.getElementById('confirm-message');
+    const okBtn = document.getElementById('btn-confirm-ok');
+    const cancelBtn = document.getElementById('btn-confirm-cancel');
+    if (!msgEl || !okBtn || !cancelBtn) { resolve(window.confirm(message)); return; }
+    msgEl.textContent = message;
+
+    const cleanup = (result) => {
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      closeMo('mo-confirm');
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    openMo('mo-confirm');
+  });
+}
+
 export function showPage(id) {
   document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
   document.getElementById('page-' + id)?.classList.add('active');
@@ -105,8 +131,15 @@ export function greet() {
 }
 
 export function todayLbl() {
-  const d = new Date();
-  return d.getDate().toString().padStart(2, '0') + '.' + (d.getMonth() + 1).toString().padStart(2, '0');
+  return dayMonthLbl(new Date());
+}
+
+// Wie todayLbl(), aber für ein beliebiges Datum statt "jetzt" - wird u.a.
+// gebraucht, um beim Löschen eines Verlaufs-Eintrags den passenden
+// Fortschritts-Datenpunkt (der im selben "TT.MM"-Format gespeichert ist)
+// wiederzufinden.
+export function dayMonthLbl(date) {
+  return date.getDate().toString().padStart(2, '0') + '.' + (date.getMonth() + 1).toString().padStart(2, '0');
 }
 
 export function typeLbl(types) {
