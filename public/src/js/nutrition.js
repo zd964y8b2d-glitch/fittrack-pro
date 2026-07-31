@@ -6,7 +6,7 @@
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
 import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood, getFrequentFoods } from './api.js';
-import { ringHTML, pbar, showToast, closeMo, openMo, mealTotals } from './ui.js';
+import { ringHTML, pbar, showToast, closeMo, openMo, confirmDialog, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
 import { matchesQuery } from './genericFoods.js';
@@ -401,7 +401,7 @@ function openEditMeal(mealId) {
 }
 
 async function confirmDeleteMeal(mealId) {
-  if (!confirm('Diese Mahlzeit wirklich löschen?')) return;
+  if (!(await confirmDialog('Diese Mahlzeit wirklich löschen?'))) return;
   try {
     assertOnline();
     await deleteMeal(mealId);
@@ -541,7 +541,7 @@ export async function saveSlotRename() {
 // zusätzlichen Symbols direkt in der Mahlzeitenliste.
 export async function deleteSlotFromRenameModal() {
   if (getSlots().length <= 1) { showToast('Mindestens eine Mahlzeit muss bestehen bleiben'); return; }
-  if (!confirm('Diese Mahlzeit wirklich löschen? Bereits eingetragene Lebensmittel bleiben erhalten, aber ohne Zuordnung.')) return;
+  if (!(await confirmDialog('Diese Mahlzeit wirklich löschen? Bereits eingetragene Lebensmittel bleiben erhalten, aber ohne Zuordnung.'))) return;
   try {
     assertOnline();
     const slots = removeMealSlot(getSlots(), renamingSlotId);
