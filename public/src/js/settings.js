@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { updateProfile, addMeasurement, getMeasurementHistory } from './api.js';
 import { GOAL_OPTS, TYPE_OPTS, calcMacros } from './coachData.js';
-import { showToast, openMo, closeMo } from './ui.js';
+import { showToast, openMo, closeMo, confirmDialog } from './ui.js';
 import { assertOnline } from './offline.js';
 import { refreshMyPlan } from './workout.js';
 
@@ -19,6 +19,12 @@ export function initSettingsModule(user, profile, onUpdate) {
   currentUser = user;
   currentProfile = profile;
   onProfileUpdated = onUpdate;
+}
+
+// Kalorien, die Protein/Kohlenhydrate/Fett (4/4/9 kcal je Gramm) ergeben -
+// Basis für den Abgleich mit dem eingestellten Kalorienziel unten.
+function impliedKcal(protein, carbs, fat) {
+  return Math.round((protein || 0) * 4 + (carbs || 0) * 4 + (fat || 0) * 9);
 }
 
 export function renderSettings() {
@@ -41,6 +47,7 @@ export function renderSettings() {
     si('Protein', u.macro_protein + ' g', 'm_protein', 'Protein (g)', 'number', u.macro_protein) +
     si('Kohlenhydrate', u.macro_carbs + ' g', 'm_carbs', 'Kohlenhydrate (g)', 'number', u.macro_carbs) +
     si('Fett', u.macro_fat + ' g', 'm_fat', 'Fett (g)', 'number', u.macro_fat) +
+    macroShortfallHint(u) +
     si('Ballaststoffe', u.macro_fiber + ' g', 'm_fiber', 'Ballaststoffe (g)', 'number', u.macro_fiber) +
     `<div class="si" style="border:none"><div class="si-l"><div class="si-name">Coach-Makros neu berechnen</div><div class="si-val">Optimal für dein Ziel</div></div><div class="si-r" id="recalc-btn">↻</div></div>`;
 
@@ -49,6 +56,18 @@ export function renderSettings() {
     si('Trainingstage', u.training_days + '× / Woche', 'days', 'Trainingstage/Woche', 'number', u.training_days);
 
   attachSettingsListeners();
+}
+
+// Warnt, wenn Protein/Kohlenhydrate/Fett rechnerisch WENIGER kcal ergeben
+// als das eingestellte Kalorienziel (z.B. nach manueller Einzel-Anpassung
+// ohne Übernahme des Angleich-Vorschlags aus saveGoalEdit).
+function macroShortfallHint(u) {
+  const sum = impliedKcal(u.macro_protein, u.macro_carbs, u.macro_fat);
+  const shortfall = (u.macro_kcal || 0) - sum;
+  if (!u.macro_kcal || shortfall <= 5) return '';
+  return `<div class="si" style="border:none;padding-top:0;padding-bottom:6px">
+    <div style="font-size:11px;color:var(--orange)">⚠️ Makros ergeben nur ${sum} von ${u.macro_kcal} kcal (${shortfall} kcal fehlen)</div>
+  </div>`;
 }
 
 function si(lbl, val, key, label, type, cur) {
@@ -209,11 +228,33 @@ export async function saveGoalEdit() {
       else if (_editKey === 'age') patch.age = val;
       else if (_editKey === 'height') patch.height_cm = val;
       else if (_editKey === 'days') patch.training_days = Math.max(1, Math.min(7, parseInt(val)));
-      else if (_editKey === 'm_kcal') patch.macro_kcal = val;
-      else if (_editKey === 'm_protein') patch.macro_protein = val;
-      else if (_editKey === 'm_carbs') patch.macro_carbs = val;
-      else if (_editKey === 'm_fat') patch.macro_fat = val;
-      else if (_editKey === 'm_fiber') patch.macro_fiber = val;
+      else if (_editKey === 'm_kcal') {
+        patch.macro_kcal = val;
+        const currentSum = impliedKcal(currentProfile.macro_protein, currentProfile.macro_carbs, currentProfile.macro_fat);
+        // Nur fragen, wenn überhaupt schon Makros gesetzt sind und sich das
+        // neue Kalorienziel spürbar von deren Summe unterscheidet.
+        if (currentSum > 0 && val > 0 && Math.abs(currentSum - val) > 5) {
+          const adjust = await confirmDialog(`Deine aktuellen Makros ergeben ${currentSum} kcal, dein neues Kalorienziel ist ${val} kcal. Makros im gleichen Verhältnis anpassen?`);
+          if (adjust) {
+            const factor = val / currentSum;
+            patch.macro_protein = Math.round((currentProfile.macro_protein || 0) * factor);
+            patch.macro_carbs = Math.round((currentProfile.macro_carbs || 0) * factor);
+            patch.macro_fat = Math.round((currentProfile.macro_fat || 0) * factor);
+          }
+        }
+      } else if (_editKey === 'm_protein' || _editKey === 'm_carbs' || _editKey === 'm_fat') {
+        const macroField = _editKey === 'm_protein' ? 'macro_protein' : _editKey === 'm_carbs' ? 'macro_carbs' : 'macro_fat';
+        patch[macroField] = val;
+        const protein = macroField === 'macro_protein' ? val : (currentProfile.macro_protein || 0);
+        const carbs = macroField === 'macro_carbs' ? val : (currentProfile.macro_carbs || 0);
+        const fat = macroField === 'macro_fat' ? val : (currentProfile.macro_fat || 0);
+        const newSum = impliedKcal(protein, carbs, fat);
+        const currentTarget = currentProfile.macro_kcal || 0;
+        if (currentTarget > 0 && Math.abs(newSum - currentTarget) > 5) {
+          const adjust = await confirmDialog(`Diese Änderung ergibt ${newSum} kcal, dein Kalorienziel ist aktuell ${currentTarget} kcal. Kalorienziel auf ${newSum} kcal anpassen?`);
+          if (adjust) patch.macro_kcal = newSum;
+        }
+      } else if (_editKey === 'm_fiber') patch.macro_fiber = val;
     }
     const updated = await updateProfile(currentUser.id, patch);
     currentProfile = updated;
