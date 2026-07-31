@@ -15,7 +15,7 @@ import {
   MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal,
   evaluateWorkoutSession, addNutritionContextToEvaluation, getNextWorkoutTip, analyzeExercisePatterns, RPE_LABELS,
 } from './coachData.js';
-import { showToast, openMo, closeMo, fmtTime, todayLbl, typeLbl, showApp, mealTotals } from './ui.js';
+import { showToast, openMo, closeMo, confirmDialog, fmtTime, todayLbl, dayMonthLbl, typeLbl, showApp, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { buildCalendarGrid, toLocalDateStr, MONTH_NAMES, GOAL_ICONS } from './calendar.js';
 
@@ -231,8 +231,8 @@ window.startWorkout = async function (dayLabel, day) {
 };
 
 // Schritt 1: Bestätigung "Workout jetzt beenden?"
-window.stopWorkout = function () {
-  if (!confirm('Workout jetzt beenden?')) return;
+window.stopWorkout = async function () {
+  if (!(await confirmDialog('Workout jetzt beenden?'))) return;
   openMo('mo-rpe');
 };
 
@@ -327,17 +327,49 @@ async function showWorkoutEvaluation(rpe, burnedKcal, durationMin) {
         <div><div style="font-size:24px;font-weight:900">${RPE_LABELS[rpe] || '–'}</div><div style="font-size:11px;color:var(--sub)">Einschätzung</div></div>
       </div>
     </div>
-    ${evaluation.lines.map(line => `<div class="coach-tip" style="margin-bottom:10px"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-BEWERTUNG</div><div class="ct-txt">${line}</div></div></div>`).join('')}
+    <div id="workout-eval-tips" style="margin-bottom:10px"></div>
     <div class="coach-tip" style="margin-bottom:10px;background:var(--accentBg);border-color:var(--accentBd)">
       <div class="ct-icon">🎯</div><div><div class="ct-lbl">TIPP FÜR NÄCHSTES MAL</div><div class="ct-txt">${nextTip}</div></div>
     </div>`;
 
+  startWorkoutEvalCarousel(evaluation.lines);
   openMo('mo-workout-eval');
+}
+
+// Zeigt die Coach-Bewertungen dieser Session nacheinander (alle 6 Sekunden)
+// statt alle gleichzeitig gestapelt - analog zu Ernährung und Mein Plan.
+let workoutEvalTimer = null;
+let workoutEvalLines = [];
+let workoutEvalIndex = 0;
+
+function startWorkoutEvalCarousel(lines) {
+  if (workoutEvalTimer) { clearInterval(workoutEvalTimer); workoutEvalTimer = null; }
+  workoutEvalLines = lines;
+  workoutEvalIndex = 0;
+  if (!workoutEvalLines.length) return;
+  renderWorkoutEvalSlide();
+  if (workoutEvalLines.length > 1) {
+    workoutEvalTimer = setInterval(() => {
+      workoutEvalIndex = (workoutEvalIndex + 1) % workoutEvalLines.length;
+      renderWorkoutEvalSlide();
+    }, 6000);
+  }
+}
+
+function renderWorkoutEvalSlide() {
+  const el = document.getElementById('workout-eval-tips');
+  if (!el || !workoutEvalLines.length) return;
+  const dots = workoutEvalLines.length > 1
+    ? `<div style="display:flex;gap:5px;margin-top:8px">${workoutEvalLines.map((_, i) =>
+        `<span style="width:6px;height:6px;border-radius:50%;background:${i === workoutEvalIndex ? 'var(--accent2)' : 'var(--border)'}"></span>`).join('')}</div>`
+    : '';
+  el.innerHTML = `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-BEWERTUNG</div><div class="ct-txt">${workoutEvalLines[workoutEvalIndex]}</div>${dots}</div></div>`;
 }
 
 // Wird geklickt, wenn der Nutzer die Auswertung schließt - erst DANN zur
 // Progression navigieren, damit die Auswertung nicht sofort verschwindet.
 window.closeWorkoutEvaluation = async function () {
+  if (workoutEvalTimer) { clearInterval(workoutEvalTimer); workoutEvalTimer = null; }
   closeMo('mo-workout-eval');
   showApp('progress');
   await renderProgression();
@@ -590,7 +622,7 @@ async function renderMyPlan() {
 // rein aus den vorhandenen Übungen abgeleitet werden (kein eigener
 // Datensatz pro Tag), reicht ein Re-Render nach kurzer Bestätigung.
 async function deleteEmptyDay(day) {
-  if (!confirm(`Tag ${day} wirklich entfernen?`)) return;
+  if (!(await confirmDialog(`Tag ${day} wirklich entfernen?`))) return;
   // Leere Tage haben keine Übungen und damit keine DB-Einträge zum Löschen.
   // Wir merken uns den entfernten Tag, damit er nicht erneut als "leerer
   // Vorschlag" auftaucht, bis der Nutzer bewusst einen neuen Tag anlegt.
@@ -819,7 +851,7 @@ function renderHistoryList() {
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span class="tag ta">${new Date(w.performed_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
-            <button data-del-log="${w.id}" data-del-date="${toLocalDateStr(new Date(w.performed_at))}" style="background:var(--redBg);border:none;border-radius:8px;width:28px;height:28px;color:var(--red);font-size:14px;cursor:pointer">✕</button>
+            <button data-del-log="${w.id}" data-del-date="${dayMonthLbl(new Date(w.performed_at))}" data-del-kcal="${w.burned_kcal || 0}" style="background:var(--redBg);border:none;border-radius:8px;width:28px;height:28px;color:var(--red);font-size:14px;cursor:pointer">✕</button>
           </div>
         </div>
       </div>`).join('')
@@ -835,7 +867,7 @@ function renderHistoryList() {
   document.querySelectorAll('[data-del-log]').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm('Diesen Workout-Eintrag löschen?')) return;
+      if (!(await confirmDialog('Diesen Workout-Eintrag löschen?'))) return;
       try {
         await deleteWorkoutLog(btn.dataset.delLog);
         // Zugehörige Fortschritts-Datenpunkte (je Übung) für dasselbe Datum
@@ -843,6 +875,19 @@ function renderHistoryList() {
         // Datenpunkt für ein bereits gelöschtes Workout.
         if (btn.dataset.delDate) {
           await removeExerciseHistoryForDate(currentUser.id, btn.dataset.delDate);
+        }
+        // War die gelöschte Einheit von HEUTE, auch ihren Kalorien-Beitrag
+        // aus dem heutigen "Verbrannte Kalorien"-Wert wieder herausrechnen -
+        // sonst bleibt er dort fälschlich stehen (siehe Anforderung 4).
+        const delKcal = parseInt(btn.dataset.delKcal) || 0;
+        if (delKcal > 0 && btn.dataset.delDate === todayLbl()) {
+          try {
+            const existingBurned = await getBurnedCaloriesForToday(currentUser.id);
+            if (existingBurned) {
+              const newTotal = Math.max(0, existingBurned.burned_kcal - delKcal);
+              await setBurnedCaloriesForToday(currentUser.id, newTotal, existingBurned.burned_source, existingBurned.id);
+            }
+          } catch (e) { /* nicht kritisch - Löschen selbst war bereits erfolgreich */ }
         }
         renderWorkoutHistory();
         showToast('Eintrag gelöscht');
@@ -1121,7 +1166,7 @@ export async function renderProgression() {
 }
 
 export async function resetProgress() {
-  if (!confirm('Möchtest du wirklich deinen gesamten Trainingsfortschritt zurücksetzen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+  if (!(await confirmDialog('Möchtest du wirklich deinen gesamten Trainingsfortschritt zurücksetzen? Diese Aktion kann nicht rückgängig gemacht werden.'))) return;
   try {
     assertOnline();
     await resetAllProgressHistory(currentUser.id);
