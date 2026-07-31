@@ -1,49 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<!-- ═══════════════════════════════════════════════════════════════════════
-     DEBUG-ERROR-OVERLAY (temporär für Fehlerdiagnose)
-     Fängt JEDEN JavaScript-Fehler ab und zeigt ihn sichtbar auf dem
-     Bildschirm an - auch Fehler die vor dem Laden des restlichen UI
-     auftreten (z.B. Modul-Import-Fehler). Muss als ALLERERSTES Script
-     laden, noch vor allen anderen, damit auch früheste Fehler erfasst
-     werden. Kann später wieder entfernt werden, sobald das Problem
-     gefunden ist.
-     ═══════════════════════════════════════════════════════════════════════ -->
-<script>
-(function() {
-  var errorLog = [];
-  function showErrorOverlay() {
-    var existing = document.getElementById('__debug-error-overlay');
-    if (existing) existing.remove();
-    var box = document.createElement('div');
-    box.id = '__debug-error-overlay';
-    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#1a0000;border-bottom:3px solid #ff3b30;color:#fff;font-family:monospace;font-size:11px;padding:10px;max-height:50vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;';
-    var title = document.createElement('div');
-    title.style.cssText = 'font-weight:bold;color:#ff3b30;margin-bottom:6px;font-size:13px;';
-    title.textContent = '⚠️ DEBUG: ' + errorLog.length + ' Fehler erkannt (zum Schließen tippen)';
-    box.appendChild(title);
-    errorLog.forEach(function(err, i) {
-      var line = document.createElement('div');
-      line.style.cssText = 'margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #440000;';
-      line.textContent = (i + 1) + '. ' + err;
-      box.appendChild(line);
-    });
-    box.addEventListener('click', function() { box.remove(); });
-    document.body ? document.body.prepend(box) : document.addEventListener('DOMContentLoaded', function() { document.body.prepend(box); });
-  }
-  window.addEventListener('error', function(e) {
-    var msg = (e.error && e.error.stack) ? e.error.stack : (e.message + ' @ ' + e.filename + ':' + e.lineno + ':' + e.colno);
-    errorLog.push(msg);
-    showErrorOverlay();
-  });
-  window.addEventListener('unhandledrejection', function(e) {
-    var msg = 'Unhandled Promise Rejection: ' + (e.reason && e.reason.stack ? e.reason.stack : e.reason);
-    errorLog.push(msg);
-    showErrorOverlay();
-  });
-})();
-</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
