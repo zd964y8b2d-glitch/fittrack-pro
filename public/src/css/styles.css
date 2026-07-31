@@ -204,6 +204,8 @@ body{
 #mo-goal .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;}
 #mo-manual-workout{align-items:flex-start;}
 #mo-manual-workout .ms{margin-top:calc(40px + var(--safe-top));border-radius:22px;}
+#mo-confirm{align-items:center;justify-content:center;}
+#mo-confirm .ms{border-radius:18px;text-align:center;}
 .mh{width:34px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
 .mt{font-size:18px;font-weight:800;margin-bottom:16px;letter-spacing:-.3px;}
 .mc{position:absolute;right:20px;top:24px;background:var(--card2);border:none;border-radius:9px;width:29px;height:29px;cursor:pointer;color:var(--sub);font-size:14px;}
