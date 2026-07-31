@@ -577,6 +577,7 @@ export function buildCoachNutritionPlan(dailyMacros, slots) {
     protein: Math.round(dailyMacros.protein * slot.pct),
     carbs: Math.round(dailyMacros.carbs * slot.pct),
     fat: Math.round(dailyMacros.fat * slot.pct),
+    fiber: Math.round((dailyMacros.fiber || 0) * slot.pct),
   }));
 }
 
@@ -631,6 +632,7 @@ function scaledMacros(food, grams) {
     protein: Math.round(food.per100.protein * f * 10) / 10,
     carbs: Math.round(food.per100.carbs * f * 10) / 10,
     fat: Math.round(food.per100.fat * f * 10) / 10,
+    fiber: Math.round((food.per100.fiber || 0) * f * 10) / 10,
   };
 }
 
@@ -701,7 +703,8 @@ export function buildFoodCombo(slotMacros, category, templateIndex = 0) {
   const totals = items.reduce((t, it) => ({
     kcal: t.kcal + it.kcal, protein: Math.round((t.protein + it.protein) * 10) / 10,
     carbs: Math.round((t.carbs + it.carbs) * 10) / 10, fat: Math.round((t.fat + it.fat) * 10) / 10,
-  }), { kcal: 0, protein: 0, carbs: 0, fat: 0 });
+    fiber: Math.round((t.fiber + it.fiber) * 10) / 10,
+  }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
 
   return { items, totals, templateCount: templates.length };
 }

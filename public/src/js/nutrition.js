@@ -64,11 +64,10 @@ export async function renderNutrition() {
     protein: currentProfile.macro_protein || 150,
     carbs: currentProfile.macro_carbs || 200,
     fat: currentProfile.macro_fat || 60,
-    // Kein individuelles Coach-Ziel wie bei den anderen Makros - allgemeine
-    // Ernährungsempfehlung (DGE u.a.: ~30g/Tag für Erwachsene), da Ballast-
-    // stoffe kaum kalorienrelevant sind und nicht Teil der Kalorienbilanz-
-    // Berechnung des Coaches sind.
-    fiber: 30,
+    // Persönliches Ziel aus Profil -> Ziele & Makros, sonst allgemeine
+    // Ernährungsempfehlung (DGE u.a.: ~30g/Tag für Erwachsene) als Fallback
+    // für Profile ohne gesetztes Ballaststoff-Ziel.
+    fiber: currentProfile.macro_fiber || 30,
   };
 
   // Eingabefelder mit aktuellem Stand befüllen
@@ -498,6 +497,7 @@ function renderCoachNutritionPlan() {
     protein: currentProfile.macro_protein || 150,
     carbs: currentProfile.macro_carbs || 200,
     fat: currentProfile.macro_fat || 60,
+    fiber: currentProfile.macro_fiber || 30,
   };
   const plan = buildCoachNutritionPlan(dailyMacros, getSlots());
 
@@ -514,6 +514,11 @@ function renderCoachNutritionPlan() {
             <div class="day-name">${slot.label}</div>
             <div style="font-size:13px;font-weight:800;color:var(--orange);margin-top:2px">${slot.kcal} kcal</div>
             ${macroLegendHTML(slot.protein, slot.carbs, slot.fat)}
+            <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--sub);margin-top:3px">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0"></span>
+              <span style="flex:1 1 auto;min-width:88px">Ballaststoffe</span>
+              <span style="color:var(--text);font-weight:700;flex-shrink:0">${slot.fiber}g</span>
+            </div>
           </div>
           ${macroDonutHTML(slot.protein, slot.carbs, slot.fat)}
         </div>
@@ -545,7 +550,7 @@ function foodComboHTML(slot) {
         <div style="font-size:11px;color:var(--sub);flex-shrink:0">${it.kcal} kcal</div>
       </div>`).join('')}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-      <div style="font-size:10px;color:var(--muted)">≈ ${combo.totals.kcal} kcal · P ${combo.totals.protein}g · K ${combo.totals.carbs}g · F ${combo.totals.fat}g</div>
+      <div style="font-size:10px;color:var(--muted)">≈ ${combo.totals.kcal} kcal · P ${combo.totals.protein}g · K ${combo.totals.carbs}g · F ${combo.totals.fat}g · B ${combo.totals.fiber}g</div>
       ${templateCount > 1 ? `<button data-combo-shuffle="${slot.id}" style="border:none;background:transparent;color:var(--accent2);font-size:11px;font-weight:700;cursor:pointer;padding:2px 4px">🔀 Andere Kombination</button>` : ''}
     </div>
   </div>`;
