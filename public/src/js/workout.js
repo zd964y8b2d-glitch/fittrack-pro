@@ -491,6 +491,20 @@ async function renderMyPlan() {
     }
   }
 
+  // Anstrengungs-Trend (RPE) der letzten Einheiten - dieselbe Konsistenz-
+  // Logik wie in der einmaligen Workout-Bewertung (evaluateWorkoutSession),
+  // hier aber dauerhaft im Hintergrund sichtbar statt nur direkt nach einer
+  // Session. workoutLogCache ist neueste-zuerst sortiert (siehe getWorkoutLogs).
+  const recentRpeValues = workoutLogCache.slice(0, 5).map((l) => l.rpe).filter(Boolean);
+  if (recentRpeValues.length >= 3) {
+    const avgRpe = recentRpeValues.reduce((s, r) => s + r, 0) / recentRpeValues.length;
+    if (avgRpe >= 3.5) {
+      tipItems.push({ icon: '🔋', label: 'REGENERATION', txt: 'Deine letzten Einheiten waren durchgehend sehr anstrengend. Plane bewusst einen Ruhetag oder eine leichtere Einheit (Deload) ein, um Übertraining zu vermeiden.', warn: true });
+    } else if (avgRpe <= 1.5) {
+      tipItems.push({ icon: '📈', label: 'TRAININGSREIZ', txt: 'Deine letzten Einheiten fühlten sich eher leicht an. Steigere Gewicht, Wiederholungen oder Sätze, um den Fortschritt zu beschleunigen.' });
+    }
+  }
+
   goalAnalysis.forEach(ga => {
     if (ga.warnings.length) {
       ga.warnings.forEach(w => tipItems.push({ icon: ga.icon, txt: w, warn: true, color: ga.color }));

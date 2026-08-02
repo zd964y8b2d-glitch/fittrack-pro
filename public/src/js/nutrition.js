@@ -5,7 +5,7 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood, getFrequentFoods, getCustomMeals, addCustomMeal, deleteCustomMeal } from './api.js';
+import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood, getFrequentFoods, getCustomMeals, addCustomMeal, deleteCustomMeal, getWorkoutLogs } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, confirmDialog, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
@@ -155,13 +155,21 @@ async function renderTrendInsights(dailyMacros) {
   const el = document.getElementById('nutr-insights');
   if (insightsCarouselTimer) { clearInterval(insightsCarouselTimer); insightsCarouselTimer = null; }
   try {
-    const [history, weightHistory, mealsBySlot] = await Promise.all([
+    const [history, weightHistory, mealsBySlot, recentLogs] = await Promise.all([
       getMealHistoryAggregated(currentUser.id, 14),
       getWeightHistoryForTrend(currentUser.id, 21),
       getMealsBySlotHistory(currentUser.id, 14),
+      getWorkoutLogs(currentUser.id, 5),
     ]);
     const goal = currentProfile.goals?.[0] || 'health';
-    const insights = analyzeNutritionTrend(history, weightHistory, dailyMacros, goal);
+    // Durchschnittliche Anstrengung (RPE) der letzten Einheiten - bezieht das
+    // Training in die Ernährungs-Analyse mit ein (siehe analyzeNutritionTrend).
+    // Erst ab 3 bewerteten Einheiten, sonst wäre der Schnitt zu unzuverlässig.
+    const recentRpeValues = recentLogs.map((l) => l.rpe).filter(Boolean);
+    const avgRecentRpe = recentRpeValues.length >= 3
+      ? recentRpeValues.reduce((s, r) => s + r, 0) / recentRpeValues.length
+      : null;
+    const insights = analyzeNutritionTrend(history, weightHistory, dailyMacros, goal, avgRecentRpe);
     const patterns = analyzeNutritionPatterns(mealsBySlot);
     insightsCarouselItems = [...insights, ...patterns.insights];
     insightsCarouselIndex = 0;

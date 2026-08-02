@@ -738,7 +738,12 @@ function round2(v) {
 
 // mealHistory: Array von { date, totalKcal, totalProtein, totalCarbs, totalFat }
 // aggregiert über die letzten Tage. weightHistory: Array von { date, weight }.
-export function analyzeNutritionTrend(mealHistory, weightHistory, goalMacros, goal) {
+// avgRecentRpe: Durchschnitt der letzten Trainings-Einschätzungen (RPE 1-4,
+// siehe evaluateWorkoutSession) - optional, null wenn zu wenig Workout-Historie
+// vorhanden. Verstärkt die Kalorien-/Protein-Hinweise um einen Regenerations-
+// Aspekt, wenn zuletzt durchgehend hart trainiert wurde UND die Ernährung
+// bereits unter dem Ziel liegt (bei ausreichender Zufuhr erübrigt sich das).
+export function analyzeNutritionTrend(mealHistory, weightHistory, goalMacros, goal, avgRecentRpe = null) {
   const insights = [];
   if (!mealHistory || mealHistory.length < 3) {
     return insights; // Zu wenig Daten für eine belastbare Aussage
@@ -749,11 +754,15 @@ export function analyzeNutritionTrend(mealHistory, weightHistory, goalMacros, go
   const avgProtein = Math.round(recentDays.reduce((s, d) => s + d.totalProtein, 0) / recentDays.length);
   const kcalDiff = avgKcal - goalMacros.kcal;
   const proteinDiff = avgProtein - goalMacros.protein;
+  const trainedHard = avgRecentRpe != null && avgRecentRpe >= 3.5;
 
   // Kalorien deutlich unter/über Ziel
   if (Math.abs(kcalDiff) > 300) {
     if (kcalDiff < 0) {
-      insights.push(`Du isst im Schnitt ${Math.abs(kcalDiff)} kcal unter deinem Ziel. ${goal === 'muscle' ? 'Das bremst den Muskelaufbau – iss mehr oder wir passen dein Ziel an.' : 'Das ist ein größeres Defizit als geplant – achte auf ausreichend Energie.'}`);
+      const recoveryNote = trainedHard
+        ? ' Deine letzten Trainingseinheiten waren zudem durchgehend sehr anstrengend – dein Körper braucht jetzt ausreichend Energie zur Erholung.'
+        : '';
+      insights.push(`Du isst im Schnitt ${Math.abs(kcalDiff)} kcal unter deinem Ziel. ${goal === 'muscle' ? 'Das bremst den Muskelaufbau – iss mehr oder wir passen dein Ziel an.' : 'Das ist ein größeres Defizit als geplant – achte auf ausreichend Energie.'}${recoveryNote}`);
     } else {
       insights.push(`Du isst im Schnitt ${kcalDiff} kcal über deinem Ziel. ${goal === 'cut' ? 'Das verlangsamt deinen Fettabbau spürbar.' : 'Falls das gewollt ist (z.B. Aufbauphase), passt das – sonst Makros neu berechnen.'}`);
     }
@@ -761,7 +770,11 @@ export function analyzeNutritionTrend(mealHistory, weightHistory, goalMacros, go
 
   // Protein deutlich unter Ziel
   if (proteinDiff < -20) {
-    insights.push(`Dein Protein liegt im Schnitt ${Math.abs(proteinDiff)}g unter dem Ziel. Für ${goal === 'muscle' || goal === 'recomp' ? 'Muskelaufbau' : 'den Erhalt deiner Muskulatur'} ist das zu wenig – plane proteinreichere Mahlzeiten ein.`);
+    if (trainedHard) {
+      insights.push(`Deine letzten Trainingseinheiten waren durchgehend sehr anstrengend, dein Protein liegt aber im Schnitt ${Math.abs(proteinDiff)}g unter dem Ziel – gerade jetzt ist ausreichend Protein für die Regeneration wichtig.`);
+    } else {
+      insights.push(`Dein Protein liegt im Schnitt ${Math.abs(proteinDiff)}g unter dem Ziel. Für ${goal === 'muscle' || goal === 'recomp' ? 'Muskelaufbau' : 'den Erhalt deiner Muskulatur'} ist das zu wenig – plane proteinreichere Mahlzeiten ein.`);
+    }
   }
 
   // Gewichts-Stagnation trotz Zielabweichung (nur wenn genug Gewichtsdaten vorhanden)
