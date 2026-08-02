@@ -5,7 +5,7 @@
 // Lebensmittelsuche (Open Food Facts), Barcode-Scan, Coach-Ernährungsplan
 // (Makro-Verteilung pro Slot) und einfacher Trend-Analyse der letzten Tage.
 // ═══════════════════════════════════════════════════════════════════════════
-import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood, getFrequentFoods } from './api.js';
+import { getMealsForToday, getMealsForDate, addMeal, updateMeal, deleteMeal, getMealHistoryAggregated, getWeightHistoryForTrend, updateProfile, getBurnedCaloriesForToday, getWaterForToday, setWaterForToday, getMealsBySlotHistory, getCalendarData, getCustomFoods, addCustomFood, getFrequentFoods, getCustomMeals, addCustomMeal, deleteCustomMeal } from './api.js';
 import { ringHTML, pbar, showToast, closeMo, openMo, confirmDialog, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
@@ -18,6 +18,12 @@ let currentProfile = null;
 let mealsCache = [];
 let customFoodsCache = [];
 let frequentFoodsCache = [];
+let customMealsCache = [];
+// Im "Bauen"-Tab zusammengestellte Zutaten, bevor sie als eigene Mahlzeit
+// gespeichert werden: { name, per100: {kcal,protein,carbs,fat,fiber}, grams }
+let buildItems = [];
+let buildSearchDebounceTimer = null;
+let buildSearchRequestId = 0;
 
 let selectedProduct = null;
 let html5QrCode = null;
@@ -38,6 +44,7 @@ export function initNutritionModule(user, profile) {
   // kritisch für den restlichen App-Start, daher fire-and-forget mit
   // stillem Fehlschlag (Suche funktioniert auch ohne eigene Lebensmittel).
   getCustomFoods(user.id).then((foods) => { customFoodsCache = foods; }).catch(() => {});
+  getCustomMeals(user.id).then((meals) => { customMealsCache = meals; }).catch(() => {});
 }
 
 export function updateProfileRef(profile) {
@@ -649,6 +656,14 @@ function resetMealModal() {
   selectedProduct = null;
   stopScanner();
   loadAndShowFrequentFoods();
+  loadAndShowCustomMeals();
+
+  buildItems = [];
+  document.getElementById('build-search-input').value = '';
+  document.getElementById('build-search-results').innerHTML = '';
+  document.getElementById('build-search-status').style.display = 'none';
+  document.getElementById('build-name').value = '';
+  renderBuildItems();
 }
 
 // ── HÄUFIG VERWENDETE LEBENSMITTEL ────────────────────────────────────────
@@ -717,6 +732,249 @@ function frequentFoodToProduct(f) {
   };
 }
 
+// ── EIGENE MAHLZEITEN (im "Bauen"-Tab zusammengestellt) ──────────────────
+// Anders als "Häufig verwendet" (einzelnes Lebensmittel, pro 100g skalierbar)
+// sind das feste Kombinationen mehrerer Zutaten - ein Tipp trägt sie direkt
+// mit den gespeicherten Gesamtwerten als EINE Mahlzeit ein, ohne Umweg über
+// die Grammzahl-Anpassung (siehe useCustomMeal).
+async function loadAndShowCustomMeals() {
+  const el = document.getElementById('custom-meals-list');
+  if (!el) return;
+  try {
+    customMealsCache = await getCustomMeals(currentUser.id);
+  } catch (e) {
+    customMealsCache = [];
+  }
+  renderCustomMealsList();
+}
+
+function renderCustomMealsList() {
+  const wrap = document.getElementById('custom-meals-wrap');
+  const el = document.getElementById('custom-meals-list');
+  if (!wrap || !el) return;
+  if (!customMealsCache.length) { wrap.style.display = 'none'; return; }
+
+  wrap.style.display = '';
+  el.innerHTML = customMealsCache.map((m) => `
+    <div class="card" data-custom-meal-id="${m.id}" style="margin-bottom:8px;cursor:pointer;padding:12px 14px">
+      <div class="row" style="align-items:center">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700">${m.name}</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:1px">${m.items.length} Zutat${m.items.length === 1 ? '' : 'en'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:800;color:var(--orange)">${m.kcal}</div>
+            <div style="font-size:10px;color:var(--sub)">kcal</div>
+          </div>
+          <button data-del-custom-meal="${m.id}" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--redBg);color:var(--red);font-size:14px;cursor:pointer;flex-shrink:0">✕</button>
+        </div>
+      </div>
+    </div>`).join('');
+
+  el.querySelectorAll('[data-custom-meal-id]').forEach((card) => {
+    card.addEventListener('click', () => useCustomMeal(card.dataset.customMealId));
+  });
+  el.querySelectorAll('[data-del-custom-meal]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      confirmDeleteCustomMeal(btn.dataset.delCustomMeal);
+    });
+  });
+}
+
+// Trägt eine gespeicherte eigene Mahlzeit mit ihren fixen Gesamtwerten als
+// EINEN Log-Eintrag ein - im zuvor per "+" vorausgewählten Slot (derselbe
+// Slot, in dem auch Suche/Manuell landen würden), ohne weiteren Zwischenschritt.
+async function useCustomMeal(id) {
+  const meal = customMealsCache.find((m) => m.id === id);
+  if (!meal) return;
+  try {
+    assertOnline();
+    await addMeal(currentUser.id, {
+      name: meal.name, cal: meal.kcal, protein: meal.protein, carbs: meal.carbs, fat: meal.fat, fiber: meal.fiber,
+      type: 'Mahlzeit', slotId: preselectedSlotId,
+      measuredAtOverride: calendarDayContext ? calendarDayContext.dateStr + 'T12:00:00' : undefined,
+    });
+    closeMo('mo-meal');
+    if (calendarDayContext) await showNutritionForDate(calendarDayContext.dateStr);
+    else await renderNutrition();
+    showToast('✅ Mahlzeit gespeichert');
+  } catch (err) {
+    showToast(err.message?.includes('Internet') ? err.message : '⚠️ Speichern fehlgeschlagen');
+  }
+}
+
+async function confirmDeleteCustomMeal(id) {
+  if (!(await confirmDialog('Diese eigene Mahlzeit wirklich löschen?'))) return;
+  try {
+    assertOnline();
+    await deleteCustomMeal(id);
+    customMealsCache = customMealsCache.filter((m) => m.id !== id);
+    renderCustomMealsList();
+    showToast('✅ Gelöscht');
+  } catch (e) {
+    showToast('⚠️ Löschen fehlgeschlagen');
+  }
+}
+
+// ── MAHLZEIT BAUEN (mehrere Lebensmittel zu einer eigenen Mahlzeit zusammenstellen) ──
+// Eigene, von der Haupt-Textsuche getrennte Debounce-Suche: fügt Treffer nicht
+// direkt als Log-Eintrag hinzu, sondern der Zutatenliste unten (buildItems).
+export function onBuildSearchInput() {
+  clearTimeout(buildSearchDebounceTimer);
+  const statusEl = document.getElementById('build-search-status');
+  const resultsEl = document.getElementById('build-search-results');
+  const query = document.getElementById('build-search-input').value;
+
+  if (!query || query.trim().length < 2) {
+    resultsEl.innerHTML = '';
+    statusEl.style.display = 'none';
+    return;
+  }
+
+  statusEl.style.display = 'block';
+  statusEl.textContent = '🔍 Suche läuft...';
+  const thisRequestId = ++buildSearchRequestId;
+
+  buildSearchDebounceTimer = setTimeout(async () => {
+    try {
+      const customMatches = searchCustomFoods(query);
+      const results = [...customMatches, ...(await searchFoodByName(query, 20, ''))];
+      if (thisRequestId !== buildSearchRequestId) return;
+      renderBuildSearchResults(results);
+      statusEl.style.display = results.length ? 'none' : 'block';
+      if (!results.length) statusEl.textContent = 'Keine Treffer gefunden.';
+    } catch (err) {
+      if (thisRequestId !== buildSearchRequestId) return;
+      statusEl.style.display = 'block';
+      statusEl.textContent = '⚠️ ' + (err.message || 'Suche fehlgeschlagen.');
+    }
+  }, 800);
+}
+
+function renderBuildSearchResults(results) {
+  const el = document.getElementById('build-search-results');
+  el.innerHTML = results.map((p, i) => `
+    <div class="card" data-build-result-idx="${i}" style="margin-bottom:8px;cursor:pointer;padding:12px 14px">
+      <div class="row">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:700">${p.name}</div>
+          ${p.brand ? `<div style="font-size:11px;color:var(--sub);margin-top:1px">${p.brand}</div>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:8px">
+          <div style="font-size:14px;font-weight:800;color:var(--orange)">${p.per100.kcal}</div>
+          <div style="font-size:10px;color:var(--sub)">kcal/100g</div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  el.querySelectorAll('[data-build-result-idx]').forEach((card) => {
+    card.addEventListener('click', () => addBuildItem(results[parseInt(card.dataset.buildResultIdx)]));
+  });
+}
+
+function addBuildItem(product) {
+  buildItems.push({ name: product.name, per100: product.per100, grams: 100 });
+  document.getElementById('build-search-input').value = '';
+  document.getElementById('build-search-results').innerHTML = '';
+  document.getElementById('build-search-status').style.display = 'none';
+  renderBuildItems();
+}
+
+function removeBuildItem(index) {
+  buildItems.splice(index, 1);
+  renderBuildItems();
+}
+
+function onBuildGramsInput(index, value) {
+  buildItems[index].grams = Math.max(0, parseInt(value) || 0);
+  renderBuildItems();
+}
+
+function buildItemsTotals() {
+  const t = buildItems.reduce((sum, item) => {
+    const s = scaleNutrients(item.per100, item.grams);
+    return {
+      kcal: sum.kcal + s.kcal, protein: sum.protein + s.protein,
+      carbs: sum.carbs + s.carbs, fat: sum.fat + s.fat, fiber: sum.fiber + (s.fiber || 0),
+    };
+  }, { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+  return {
+    kcal: Math.round(t.kcal), protein: Math.round(t.protein * 10) / 10,
+    carbs: Math.round(t.carbs * 10) / 10, fat: Math.round(t.fat * 10) / 10, fiber: Math.round(t.fiber * 10) / 10,
+  };
+}
+
+function renderBuildItems() {
+  const listEl = document.getElementById('build-items-list');
+  const lblEl = document.getElementById('build-items-lbl');
+  const totalsEl = document.getElementById('build-totals');
+
+  if (!buildItems.length) {
+    listEl.innerHTML = '';
+    lblEl.style.display = 'none';
+    totalsEl.style.display = 'none';
+    return;
+  }
+
+  lblEl.style.display = '';
+  totalsEl.style.display = '';
+
+  listEl.innerHTML = buildItems.map((item, i) => {
+    const scaled = scaleNutrients(item.per100, item.grams);
+    return `<div class="card" style="margin-bottom:8px;padding:10px 12px">
+      <div class="row" style="align-items:center;gap:8px">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700">${item.name}</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:1px">${scaled.kcal} kcal</div>
+        </div>
+        <input type="number" inputmode="numeric" value="${item.grams}" data-build-grams-idx="${i}" style="width:56px;text-align:center;border:1px solid var(--border);border-radius:8px;padding:6px;background:var(--surface);color:var(--text);font-size:13px">
+        <span style="font-size:11px;color:var(--sub)">g</span>
+        <button data-build-remove-idx="${i}" style="width:28px;height:28px;border-radius:8px;border:none;background:var(--redBg);color:var(--red);font-size:14px;cursor:pointer;flex-shrink:0">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  listEl.querySelectorAll('[data-build-grams-idx]').forEach((input) => {
+    input.addEventListener('input', () => onBuildGramsInput(parseInt(input.dataset.buildGramsIdx), input.value));
+  });
+  listEl.querySelectorAll('[data-build-remove-idx]').forEach((btn) => {
+    btn.addEventListener('click', () => removeBuildItem(parseInt(btn.dataset.buildRemoveIdx)));
+  });
+
+  const totals = buildItemsTotals();
+  document.getElementById('build-total-kcal').textContent = totals.kcal;
+  document.getElementById('build-total-protein').textContent = totals.protein + 'g';
+  document.getElementById('build-total-carbs').textContent = totals.carbs + 'g';
+}
+
+// Speichert die im "Bauen"-Tab zusammengestellte Zutatenliste als neue eigene
+// Mahlzeit (custom_meals) - danach direkt in der Suche unter "Eigene
+// Mahlzeiten" verfügbar (siehe renderCustomMealsList).
+export async function saveCustomMeal() {
+  const name = document.getElementById('build-name').value.trim();
+  if (!name) { showToast('⚠️ Bitte einen Namen eingeben'); return; }
+  if (!buildItems.length) { showToast('⚠️ Bitte mindestens eine Zutat hinzufügen'); return; }
+
+  const totals = buildItemsTotals();
+  const items = buildItems.map((item) => ({ name: item.name, grams: item.grams, ...scaleNutrients(item.per100, item.grams) }));
+
+  try {
+    assertOnline();
+    const saved = await addCustomMeal(currentUser.id, { name, items, ...totals });
+    customMealsCache = [saved, ...customMealsCache];
+    buildItems = [];
+    document.getElementById('build-name').value = '';
+    renderBuildItems();
+    switchMealTab('search');
+    renderCustomMealsList();
+    showToast('✅ Eigene Mahlzeit gespeichert');
+  } catch (e) {
+    showToast('⚠️ Speichern fehlgeschlagen');
+  }
+}
+
 // Blendet das Mengenfeld nur ein, wenn "Als eigenes Lebensmittel speichern"
 // aktiviert ist - hält das Formular im Normalfall kompakt.
 export function toggleSaveGenericGrams() {
@@ -725,12 +983,13 @@ export function toggleSaveGenericGrams() {
 }
 
 export function switchMealTab(tab) {
-  ['search', 'scan', 'manual'].forEach((t) => {
+  ['search', 'scan', 'manual', 'build'].forEach((t) => {
     document.getElementById('mtab-' + t).classList.toggle('active', t === tab);
   });
   document.getElementById('mv-search').style.display = tab === 'search' ? '' : 'none';
   document.getElementById('mv-scan').style.display = tab === 'scan' ? '' : 'none';
   document.getElementById('mv-manual').style.display = tab === 'manual' ? '' : 'none';
+  document.getElementById('mv-build').style.display = tab === 'build' ? '' : 'none';
   document.getElementById('mv-product-detail').style.display = 'none';
   if (tab !== 'scan') stopScanner();
 }
@@ -766,10 +1025,12 @@ export function onFoodSearchInput() {
     resultsEl.innerHTML = '';
     statusEl.style.display = 'none';
     renderFrequentFoods(); // Suchfeld leer -> häufig verwendete Lebensmittel wieder zeigen
+    renderCustomMealsList(); // ... und eigene Mahlzeiten ebenfalls wieder zeigen
     return;
   }
 
   document.getElementById('food-frequent-wrap').style.display = 'none';
+  document.getElementById('custom-meals-wrap').style.display = 'none';
   statusEl.style.display = 'block';
   statusEl.textContent = '🔍 Suche läuft...';
 

@@ -252,6 +252,7 @@
     <button class="tab-item active" id="mtab-search" data-mtab="search">🔍 Suche</button>
     <button class="tab-item" id="mtab-scan" data-mtab="scan">📷 Scannen</button>
     <button class="tab-item" id="mtab-manual" data-mtab="manual">✏️ Manuell</button>
+    <button class="tab-item" id="mtab-build" data-mtab="build">🍽️ Bauen</button>
   </div>
 
   <!-- ── SUCHE ─────────────────────────────────────────────────── -->
@@ -263,6 +264,13 @@
       <input id="food-search-brand-input" class="oi" type="text" placeholder="Hersteller (optional, z.B. Danone)" autocomplete="off">
     </div>
     <div id="food-search-status" style="font-size:12px;color:var(--sub);padding:4px 2px 8px;display:none"></div>
+    <!-- Eigene, aus mehreren Lebensmitteln zusammengestellte Mahlzeiten
+         (siehe "Bauen"-Tab) - ein Tipp trägt sie mit den gespeicherten
+         Gesamtwerten als ein Eintrag ein, keine Mengen-Anpassung nötig. -->
+    <div id="custom-meals-wrap" style="display:none">
+      <div class="slbl" style="margin-bottom:8px">Eigene Mahlzeiten</div>
+      <div id="custom-meals-list"></div>
+    </div>
     <!-- Häufig verwendete Lebensmittel (letzte 30 Tage) - direkt sichtbar
          beim Öffnen der Suche, verschwindet sobald getippt wird. -->
     <div id="food-frequent-wrap" style="display:none">
@@ -335,6 +343,27 @@
     </div>
     <input type="hidden" id="mn-edit-id">
     <button class="btn-p" id="btn-save-meal">Speichern</button>
+  </div>
+
+  <!-- ── MAHLZEIT BAUEN (mehrere Lebensmittel zusammenstellen) ────── -->
+  <div id="mv-build" style="display:none">
+    <div class="ig">
+      <input id="build-search-input" class="oi" type="text" placeholder="Zutat suchen, z.B. Banane..." autocomplete="off">
+    </div>
+    <div id="build-search-status" style="font-size:12px;color:var(--sub);padding:4px 2px 8px;display:none"></div>
+    <div id="build-search-results"></div>
+
+    <div class="slbl" id="build-items-lbl" style="margin-top:10px;display:none">Zutaten</div>
+    <div id="build-items-list"></div>
+
+    <div class="macro-grid" id="build-totals" style="margin-top:4px;margin-bottom:14px;display:none">
+      <div class="macro-tile"><div class="macro-val" id="build-total-kcal" style="color:var(--orange)">0</div><div class="macro-lbl">kcal</div></div>
+      <div class="macro-tile"><div class="macro-val" id="build-total-protein" style="color:var(--accent2)">0g</div><div class="macro-lbl">Protein</div></div>
+      <div class="macro-tile"><div class="macro-val" id="build-total-carbs" style="color:var(--green)">0g</div><div class="macro-lbl">Kohlenh.</div></div>
+    </div>
+
+    <div class="ig"><label>Name der Mahlzeit</label><input id="build-name" class="oi" type="text" placeholder="z.B. Frühstücksbowl"></div>
+    <button class="btn-p" id="btn-save-custom-meal">Als eigene Mahlzeit speichern</button>
   </div>
 </div>
 </div>

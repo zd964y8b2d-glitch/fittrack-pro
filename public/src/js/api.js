@@ -283,6 +283,33 @@ export async function addCustomFood(userId, { name, kcal, protein, carbs, fat, f
   return data;
 }
 
+// ── EIGENE MAHLZEITEN (mehrere Lebensmittel zu einer Mahlzeit zusammengestellt) ──
+// Anders als custom_foods (Referenzwerte pro 100g) sind das feste, bereits
+// aufsummierte Kombinationen mehrerer Zutaten - "items" hält die einzelnen
+// Zutaten als Snapshot nur zur Anzeige/Nachvollziehbarkeit fest, die anderen
+// Spalten die für den direkten Log-Eintrag relevanten Gesamtwerte.
+export async function getCustomMeals(userId) {
+  const { data, error } = await supabase
+    .from('custom_meals').select('*').eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addCustomMeal(userId, { name, items, kcal, protein, carbs, fat, fiber }) {
+  const { data, error } = await supabase
+    .from('custom_meals')
+    .insert({ user_id: userId, name, items, kcal, protein, carbs, fat, fiber: fiber ?? 0 })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCustomMeal(id) {
+  const { error } = await supabase.from('custom_meals').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // Getrunkenes Wasser für heute (manuell erfasst, in ml). Analog zu den
 // verbrannten Kalorien: EIN Datensatz pro Tag (kind='water'), unabhängig
 // von einzelnen Mahlzeiten - da Wasser ein Tageswert ist, kein Pro-Mahlzeit-Wert.

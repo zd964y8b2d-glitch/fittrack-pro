@@ -30,6 +30,7 @@ import {
   stepWater, saveWater,
   nutritionCalPrevMonth, nutritionCalNextMonth,
   showNutritionForDate, closeNutritionReview, closeMealModal,
+  onBuildSearchInput, saveCustomMeal,
   updateProfileRef as updateNutritionProfileRef,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit, editField } from './settings.js';
@@ -528,14 +529,18 @@ function wireStaticButtons() {
   });
   on('mn-save-generic', 'change', () => toggleSaveGenericGrams());
 
-  // Meal Modal - Tabs (Suche / Scannen / Manuell)
-  ['search', 'scan', 'manual'].forEach((t) => {
+  // Meal Modal - Tabs (Suche / Scannen / Manuell / Bauen)
+  ['search', 'scan', 'manual', 'build'].forEach((t) => {
     on('mtab-' + t, 'click', () => switchMealTab(t));
   });
 
   // Meal Modal - Textsuche (Produktname + optionaler Hersteller)
   on('food-search-input', 'input', () => onFoodSearchInput());
   on('food-search-brand-input', 'input', () => onFoodSearchInput());
+
+  // Meal Modal - Mahlzeit bauen (mehrere Lebensmittel zusammenstellen)
+  on('build-search-input', 'input', () => onBuildSearchInput());
+  on('btn-save-custom-meal', 'click', () => saveCustomMeal());
 
   // Meal Modal - Barcode-Scanner
   on('btn-start-scan', 'click', () => startScanner());
