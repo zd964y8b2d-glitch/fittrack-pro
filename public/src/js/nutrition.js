@@ -292,6 +292,10 @@ export function openMealModalForSlotOnDate(slotId) {
   preselectedSlotId = slotId;
   resetMealModal();
   document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit eintragen';
+  // mo-nutrition-review liegt im DOM NACH mo-meal und damit bei gleichem
+  // z-index optisch darüber - ohne dieses Schließen würde sich mo-meal
+  // unsichtbar dahinter öffnen und auf Eingaben nicht reagieren.
+  closeMo('mo-nutrition-review');
   openMo('mo-meal');
 }
 
@@ -404,6 +408,10 @@ function openEditMeal(mealId) {
   document.getElementById('mn-edit-id').value = meal.id;
   populateSlotSelect('mn-slot-select', meal.meal_slot_id);
   document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit bearbeiten';
+  // Siehe openMealModalForSlotOnDate: ohne dieses Schließen würde sich
+  // mo-meal beim Bearbeiten aus der Kalender-Tagesansicht heraus unsichtbar
+  // hinter dem noch offenen mo-nutrition-review öffnen.
+  closeMo('mo-nutrition-review');
   openMo('mo-meal');
 }
 
@@ -1055,6 +1063,15 @@ export function getMealsCache() { return mealsCache; }
 export function closeNutritionReview() {
   calendarDayContext = null;
   closeMo('mo-nutrition-review');
+}
+
+// Schließt das Eintragen/Bearbeiten-Modal - kehrt bei Aufruf aus der
+// Kalender-Tagesansicht heraus (calendarDayContext gesetzt) wieder zu dieser
+// zurück, statt den Nutzer unvermittelt auf der "Heute"-Ansicht landen zu
+// lassen (relevant beim Abbrechen ohne zu speichern, siehe btn-close-meal-modal).
+export function closeMealModal() {
+  closeMo('mo-meal');
+  if (calendarDayContext) openMo('mo-nutrition-review');
 }
 
 export async function showNutritionForDate(dateStr) {

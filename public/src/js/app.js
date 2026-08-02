@@ -29,7 +29,7 @@ import {
   switchNutritionTab, openSlotRename, saveSlotRename, deleteSlotFromRenameModal,
   stepWater, saveWater,
   nutritionCalPrevMonth, nutritionCalNextMonth,
-  showNutritionForDate, closeNutritionReview,
+  showNutritionForDate, closeNutritionReview, closeMealModal,
   updateProfileRef as updateNutritionProfileRef,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit, editField } from './settings.js';
@@ -520,7 +520,7 @@ function wireStaticButtons() {
   // Meal Modal
   on('btn-close-meal-modal', 'click', async () => {
     await stopScanner();
-    closeMo('mo-meal');
+    closeMealModal();
   });
   on('btn-save-meal', 'click', async () => {
     await saveMealFromModal();
