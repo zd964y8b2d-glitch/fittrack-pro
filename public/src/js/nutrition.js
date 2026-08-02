@@ -10,7 +10,7 @@ import { ringHTML, pbar, showToast, closeMo, openMo, confirmDialog, mealTotals }
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
 import { matchesQuery } from './genericFoods.js';
-import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns, comboCategoryForSlot, comboTemplateCount, buildFoodCombo } from './coachData.js';
+import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns, comboCategoryForSlot, comboTemplateCount, buildFoodCombo, getNutritionCoachTip } from './coachData.js';
 import { buildCalendarGrid, MONTH_NAMES } from './calendar.js';
 
 let currentUser = null;
@@ -85,6 +85,7 @@ export async function renderNutrition() {
   document.getElementById('nutr-sub').textContent = burnedKcal
     ? `Ziel: ${currentProfile.macro_kcal || 2000} kcal + ${burnedKcal} verbrannt`
     : `Ziel: ${m.kcal} kcal`;
+  document.getElementById('nutr-coach-tip').innerHTML = `<div class="coach-tip"><div class="ct-icon">🥗</div><div><div class="ct-lbl">ERNÄHRUNGS-TIPP</div><div class="ct-txt">${getNutritionCoachTip(currentProfile.goals)}</div></div></div>`;
   document.getElementById('nutr-card').innerHTML = `
     <div class="row" style="margin-bottom:14px">
       <div><div style="font-size:28px;font-weight:900;letter-spacing:-1px">${t.cal}</div>

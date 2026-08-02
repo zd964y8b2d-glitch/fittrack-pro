@@ -211,6 +211,7 @@ body{
 .mc{position:absolute;right:20px;top:24px;background:var(--card2);border:none;border-radius:9px;width:29px;height:29px;cursor:pointer;color:var(--sub);font-size:14px;}
 
 .toast{position:fixed;bottom:calc(96px + var(--safe-bottom));left:50%;transform:translateX(-50%) translateY(16px);background:var(--card2);border:1px solid var(--border);border-radius:13px;padding:11px 18px;font-size:13px;font-weight:700;color:var(--text);z-index:300;opacity:0;transition:all .28s;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.5);}
+.rest-timer-bar{position:fixed;bottom:calc(78px + var(--safe-bottom));left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:398px;background:var(--card2);border:1px solid var(--accentBd);border-radius:16px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:120;box-shadow:0 8px 24px rgba(0,0,0,.4);}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .update-banner{position:fixed;top:0;left:50%;width:100%;max-width:430px;transform:translateX(-50%) translateY(-100%);background:var(--accent);color:#fff;text-align:center;font-size:13px;font-weight:700;padding:calc(12px + var(--safe-top)) 16px 12px;cursor:pointer;z-index:500;transition:transform .3s ease;box-shadow:0 4px 20px rgba(0,0,0,.35);}
 .update-banner.show{transform:translateX(-50%) translateY(0);}

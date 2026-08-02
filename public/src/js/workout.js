@@ -14,6 +14,7 @@ import {
 import {
   MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal,
   evaluateWorkoutSession, addNutritionContextToEvaluation, getNextWorkoutTip, analyzeExercisePatterns, RPE_LABELS,
+  getRestSeconds,
 } from './coachData.js';
 import { showToast, openMo, closeMo, confirmDialog, fmtTime, todayLbl, dayMonthLbl, typeLbl, showApp, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
@@ -78,7 +79,7 @@ function getSessSets(i) {
     if (!details || !details.length) {
       details = Array.from({length: ex.sets || 1}, () => ({ reps: ex.reps, weight: Number(ex.weight_kg) || 0 }));
     }
-    sessData[i] = details.map(s => ({ reps: s.reps, weight: s.weight, done: false }));
+    sessData[i] = details.map(s => ({ reps: s.reps, weight: s.weight, done: false, failure: false }));
   }
   return sessData[i];
 }
@@ -108,15 +109,76 @@ window.stepSet = function(i, si, field, delta) {
 
 window.toggleSetDone = function(i, si) {
   const sets = getSessSets(i);
-  sets[si].done = !sets[si].done;
+  const turningOn = !sets[si].done;
+  sets[si].done = turningOn;
+  renderActiveWorkout();
+  // Nur beim Abhaken (nicht beim Rückgängigmachen) automatisch eine Pause
+  // vorschlagen - Dauer richtet sich nach der Muskelgruppe der Übung.
+  if (turningOn) startRestTimer(activeExercises[i]?.muscle_group);
+};
+
+window.toggleSetFailure = function(i, si) {
+  const sets = getSessSets(i);
+  sets[si].failure = !sets[si].failure;
   renderActiveWorkout();
 };
 
 window.addSetToActive = function(i) {
   const sets = getSessSets(i);
   const last = sets[sets.length - 1];
-  sets.push({ reps: last?.reps ?? 10, weight: last?.weight ?? 0, done: false });
+  sets.push({ reps: last?.reps ?? 10, weight: last?.weight ?? 0, done: false, failure: false });
   renderActiveWorkout();
+};
+
+// ── SATZPAUSEN-TIMER ─────────────────────────────────────────────────────
+// Startet automatisch, sobald ein Satz abgehakt wird (siehe toggleSetDone).
+// Läuft unabhängig vom aktuell angezeigten Tab weiter (rest-timer-bar ist
+// ein fixes Element außerhalb von #wv-active, siehe index.html/styles.css),
+// damit er nicht durch renderActiveWorkout()-Re-Renders verloren geht.
+let restTimerInterval = null;
+let restTimerRemaining = 0;
+
+function startRestTimer(muscleGroup) {
+  if (restTimerInterval) clearInterval(restTimerInterval);
+  restTimerRemaining = getRestSeconds(muscleGroup);
+  renderRestTimerBar();
+  restTimerInterval = setInterval(() => {
+    restTimerRemaining--;
+    if (restTimerRemaining <= 0) {
+      clearInterval(restTimerInterval);
+      restTimerInterval = null;
+      restTimerRemaining = 0;
+      renderRestTimerBar();
+      navigator.vibrate?.(200); // Best-effort, nicht auf allen Geräten/Browsern unterstützt (z.B. iOS Safari)
+      showToast('⏱️ Pause vorbei – nächster Satz!');
+      return;
+    }
+    renderRestTimerBar();
+  }, 1000);
+}
+
+function renderRestTimerBar() {
+  const bar = document.getElementById('rest-timer-bar');
+  if (!bar) return;
+  if (restTimerInterval === null && restTimerRemaining <= 0) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  document.getElementById('rest-timer-time').textContent = fmtTime(restTimerRemaining);
+}
+
+window.stepRestTimer = function(delta) {
+  if (restTimerInterval === null) return; // nichts läuft gerade
+  restTimerRemaining = Math.max(0, restTimerRemaining + delta);
+  renderRestTimerBar();
+};
+
+window.skipRestTimer = function() {
+  if (restTimerInterval) clearInterval(restTimerInterval);
+  restTimerInterval = null;
+  restTimerRemaining = 0;
+  renderRestTimerBar();
 };
 
 function exerciseCardHTML(ex, i) {
@@ -153,7 +215,8 @@ function exerciseCardHTML(ex, i) {
                 <button class="sp sp-p" onclick="event.stopPropagation();stepSet(${i},${si},'weight',1)">+</button>
               </div></div>` : ''}
             </div>
-            <button onclick="event.stopPropagation();toggleSetDone(${i},${si})" style="margin-left:8px;flex-shrink:0;width:32px;height:32px;border-radius:9px;border:none;cursor:pointer;background:${s.done?'var(--greenBg)':'var(--border)'};color:${s.done?'var(--green)':'var(--sub)'};font-size:16px">✓</button>
+            <button onclick="event.stopPropagation();toggleSetFailure(${i},${si})" title="Bis zum Muskelversagen trainiert" style="margin-left:6px;flex-shrink:0;width:32px;height:32px;border-radius:9px;border:none;cursor:pointer;background:${s.failure?'var(--redBg)':'var(--border)'};color:${s.failure?'var(--red)':'var(--sub)'};font-size:14px">🔥</button>
+            <button onclick="event.stopPropagation();toggleSetDone(${i},${si})" style="margin-left:6px;flex-shrink:0;width:32px;height:32px;border-radius:9px;border:none;cursor:pointer;background:${s.done?'var(--greenBg)':'var(--border)'};color:${s.done?'var(--green)':'var(--sub)'};font-size:16px">✓</button>
           </div>`).join('')}
         <button onclick="event.stopPropagation();addSetToActive(${i})" style="width:100%;background:var(--accentBg);border:1px dashed var(--accentBd);border-radius:10px;padding:8px;color:var(--accent2);font-size:12px;font-weight:700;cursor:pointer;margin-top:2px">+ Satz</button>
         <div class="vol-badge" id="vol-${i}" style="margin-top:8px">Vol: ${vol}${ex.is_bodyweight ? ' Wdh.' : ' kg'}</div>
@@ -218,6 +281,7 @@ window.startWorkout = async function (dayLabel, day) {
 
   wActive = true; wStartTimestamp = Date.now(); wSecs = 0; wDone = 0; sessData = {}; expandedEx = {};
   activeDayLabel = dayLabel || (activeExercises[0]?.day_name || 'Workout');
+  window.skipRestTimer(); // falls durch einen Absturz/Neustart noch ein Timer einer alten Session lief
   showApp('workout'); wTab('active');
   wTimer = setInterval(() => {
     const el = document.getElementById('timer');
@@ -268,6 +332,7 @@ async function finishWorkout(rpe) {
       sessionSnapshot,
     });
     wActive = false; clearInterval(wTimer); wStartTimestamp = null;
+    window.skipRestTimer();
 
     await showWorkoutEvaluation(rpe, burnedKcal, durationMin);
   } catch (err) {

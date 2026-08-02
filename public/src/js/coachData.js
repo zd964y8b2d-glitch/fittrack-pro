@@ -17,6 +17,15 @@ export const MUSCLE_COLORS = {
 
 export const MUSCLE_GROUPS_IMPORTANT = ['Brust', 'Rücken', 'Schultern', 'Beine', 'Gesäß', 'Bauch'];
 
+// Empfohlene Pausenzeit zwischen Sätzen (Rest-Timer im aktiven Workout, siehe
+// workout.js startRestTimer): kleine Muskelgruppen/Isolationsübungen erholen
+// sich schneller als große Verbundübungen - siehe auch den Coach-Tipp
+// "Pausenzeiten anpassen" oben in COMMON_COACH_TIPS.
+const SMALL_MUSCLE_GROUPS = ['Bizeps', 'Trizeps', 'Waden', 'Bauch'];
+export function getRestSeconds(muscleGroup) {
+  return SMALL_MUSCLE_GROUPS.includes(muscleGroup) ? 60 : 150;
+}
+
 export const GOAL_OPTS = [
   { v: 'muscle', i: '💪', l: 'Muskelaufbau', s: 'Masse & Kraft aufbauen' },
   { v: 'cut', i: '🔥', l: 'Fettabbau', s: 'Definiert & schlank werden' },
@@ -394,16 +403,97 @@ export function calcMacros(profile, goals, days) {
 
 // ── Coach-Tipps ──────────────────────────────────────────────────────────
 export const COACH_TIPS = {
-  muscle: ['Progressive Überladung ist das Fundament. Steigere jede Woche Gewicht ODER Volumen.', 'Mind-Muscle-Connection: Fühl die Muskeln, nicht nur die Bewegung.', 'Iss dein Protein auf 4-5 Mahlzeiten verteilt für maximale Muskelproteinsynthese.', 'Regeneration ist Training. Schlaf 8h und plane 48h Pause pro Muskelgruppe.'],
-  cut: ['Kaloriendefizit von 400-500 kcal schont Muskelmasse optimal.', 'Mehr Protein in der Diät – 2.4-2.6g/kg schützt vor Muskelverlust.', 'Cardio morgens nüchtern erhöht die Fettverbrennung.'],
-  recomp: ['Recomposition ist ein Marathon, kein Sprint. Plane 6-12 Monate.', 'Trainingstage: Erhaltungskalorien. Ruhetage: 200 kcal Defizit.'],
-  endurance: ['Carbs sind dein Treibstoff. Lade vor langen Sessions mit komplexen KH.', 'Zone-2-Training (60-70% HF max) baut die aerobe Basis am effektivsten auf.'],
-  health: ['Konsistenz über Intensität. 3x pro Woche moderat ist besser als 1x extrem.', 'Kombiniere Kraft + Ausdauer für maximalen Gesundheitseffekt.'],
+  muscle: [
+    'Progressive Überladung ist das Fundament. Steigere jede Woche Gewicht ODER Volumen.',
+    'Mind-Muscle-Connection: Fühl die Muskeln, nicht nur die Bewegung.',
+    'Iss dein Protein auf 4-5 Mahlzeiten verteilt für maximale Muskelproteinsynthese.',
+    'Regeneration ist Training. Schlaf 8h und plane 48h Pause pro Muskelgruppe.',
+    'Volumen ist ein Haupttreiber für Muskelwachstum: 10-20 harte Sätze pro Muskelgruppe/Woche gelten als effektiver Bereich.',
+    'Trainiere jede Muskelgruppe mindestens 2x/Woche – das liefert meist einen besseren Wachstumsreiz als 1x mit sehr hohem Volumen.',
+  ],
+  cut: [
+    'Kaloriendefizit von 400-500 kcal schont Muskelmasse optimal.',
+    'Mehr Protein in der Diät – 2.4-2.6g/kg schützt vor Muskelverlust.',
+    'Cardio morgens nüchtern erhöht die Fettverbrennung.',
+    'Kraft erhalten hat im Defizit Priorität – reduziere eher Sätze/Wiederholungen als das Gewicht auf der Stange.',
+  ],
+  recomp: [
+    'Recomposition ist ein Marathon, kein Sprint. Plane 6-12 Monate.',
+    'Trainingstage: Erhaltungskalorien. Ruhetage: 200 kcal Defizit.',
+    'Priorisiere Schlaf und Stressmanagement – Recomposition reagiert empfindlich auf schlechte Erholung.',
+  ],
+  endurance: [
+    'Carbs sind dein Treibstoff. Lade vor langen Sessions mit komplexen KH.',
+    'Zone-2-Training (60-70% HF max) baut die aerobe Basis am effektivsten auf.',
+    'Baue 1x pro Woche ein kurzes Krafttraining ein – erhält Muskelmasse und verbessert die Laufökonomie.',
+  ],
+  health: [
+    'Konsistenz über Intensität. 3x pro Woche moderat ist besser als 1x extrem.',
+    'Kombiniere Kraft + Ausdauer für maximalen Gesundheitseffekt.',
+    'Bewegung im Alltag (Treppen, Spaziergänge) zählt zusätzlich zum geplanten Training – jede Bewegung hilft.',
+  ],
 };
+
+// Zielunabhängige Tipps (Pausenzeiten, Technik-Grundlagen, Übertraining) -
+// werden bei JEDEM Ziel zusätzlich zu den zielspezifischen Tipps oben gezeigt
+// (siehe getCoachTip), da sie für jede Trainingsart gleichermaßen gelten.
+const COMMON_COACH_TIPS = [
+  'Pausenzeiten anpassen: Bei kleinen Muskelgruppen (Bizeps, Trizeps, Waden) reichen meist 30-60 Sek., bei großen Verbundübungen (Kniebeuge, Kreuzheben, Bankdrücken) 2-3 Min. für volle Kraftentfaltung im nächsten Satz.',
+  'Muskelversagen (der Punkt, an dem keine weitere saubere Wiederholung mehr möglich ist) ist ein wirksames Werkzeug für den letzten Satz einer Übung – bei JEDEM Satz bis zum Versagen zu trainieren, erhöht aber unnötig das Verletzungs- und Übertrainingsrisiko.',
+  'Anzeichen für Übertraining: anhaltende Müdigkeit, sinkende Kraftwerte trotz Training, schlechterer Schlaf, erhöhter Ruhepuls. Mehrere davon über 1-2 Wochen? Dann ist eine leichtere Deload-Woche sinnvoll.',
+  'Übertraining vorbeugen: Plane alle 6-8 Wochen bewusst eine Deload-Woche (ca. halbes Volumen/Gewicht) ein, statt durchgehend am Limit zu trainieren.',
+  'Verbundübungen (Kniebeuge, Kreuzheben, Bankdrücken, Klimmzüge) zuerst im Training, wenn die Kraft noch frisch ist – Isolationsübungen (z.B. Bizepscurls, Beinstrecker) danach.',
+  'Aufwärmsätze mit leichterem Gewicht vor dem eigentlichen Arbeitsgewicht senken das Verletzungsrisiko und verbessern die Leistung im Arbeitssatz.',
+];
 
 export function getCoachTip(goals) {
   const g = resolveGoalKey(normalizeGoalList(goals));
-  const tips = COACH_TIPS[g] || COACH_TIPS.health;
+  const tips = [...(COACH_TIPS[g] || COACH_TIPS.health), ...COMMON_COACH_TIPS];
+  return tips[Math.floor(Math.random() * tips.length)];
+}
+
+// ── Ernährungs-Coach-Tipps (rotierender Tipp in der Ernährungs-Ansicht,
+// analog zu getCoachTip für Training) ────────────────────────────────────
+export const NUTRITION_COACH_TIPS = {
+  muscle: [
+    'Wichtiger als exaktes Timing des "anabolen Fensters" ist die ausreichende Protein-Gesamtzufuhr über den Tag verteilt.',
+    'Leucin-reiche Proteinquellen (Molkenprotein, Eier, Fleisch, Fisch) regen die Muskelproteinsynthese besonders effektiv an.',
+  ],
+  cut: [
+    'Ballaststoffreiche, wasserreiche Lebensmittel (Gemüse, Obst) sättigen bei wenig Kalorien besonders gut – ideal im Kaloriendefizit.',
+    'Proteinreiche Snacks (Magerquark, Skyr, Eier) reduzieren Heißhunger im Defizit spürbar besser als Kohlenhydrat-Snacks.',
+  ],
+  recomp: [
+    'Eine gleichmäßige Proteinverteilung über den Tag (statt alles auf einmal) unterstützt Muskelerhalt und Fettabbau gleichermaßen.',
+  ],
+  endurance: [
+    'Vor langen Ausdauereinheiten: komplexe Kohlenhydrate (Vollkornprodukte, Haferflocken) 2-3h vorher füllen die Glykogenspeicher.',
+    'Nach langen Einheiten: Kohlenhydrate und Protein kombinieren (grob 3:1) – füllt Glykogenspeicher UND unterstützt die Regeneration.',
+  ],
+  health: [
+    'Vielfalt bei Gemüse und Obst (verschiedene Farben) liefert ein breiteres Spektrum an Mikronährstoffen als immer dieselben 2-3 Sorten.',
+    'Verarbeitete Lebensmittel möglichst durch ihre unverarbeitete Form ersetzen (z.B. eine ganze Kartoffel statt Chips) – mehr Sättigung, mehr Nährstoffe.',
+  ],
+};
+
+// Allgemeingültige Ernährungs-Grundlagen (Ballaststoffe, Fette, Protein-
+// quellen, Makroverteilung) - unabhängig vom Trainingsziel bei jedem
+// Nutzer relevant, siehe getNutritionCoachTip.
+const COMMON_NUTRITION_TIPS = [
+  'Ballaststoffe (Vollkorn, Gemüse, Hülsenfrüchte) verlangsamen die Verdauung, halten länger satt und unterstützen eine gesunde Darmflora – ziel auf mind. 30g pro Tag.',
+  'Lösliche Ballaststoffe (Hafer, Äpfel, Hülsenfrüchte) senken zusätzlich den Cholesterinspiegel, unlösliche (Vollkorn, Gemüseschalen) fördern die Verdauung.',
+  'Ungesättigte Fette (Olivenöl, Nüsse, Avocado, fetter Fisch) unterstützen Herz-Kreislauf-Gesundheit und Hormonproduktion – bevorzuge sie gegenüber gesättigten Fetten (Butter, fettes Fleisch, Frittiertem).',
+  'Transfette (in stark verarbeiteten Snacks/Fast Food) möglichst ganz meiden – sie erhöhen nachweislich das Herz-Kreislauf-Risiko.',
+  'Omega-3-Fettsäuren (fetter Fisch wie Lachs/Makrele, Leinsamen, Walnüsse) wirken entzündungshemmend – die meisten Menschen nehmen davon zu wenig auf.',
+  'Tierische Proteinquellen (Fleisch, Fisch, Eier, Milchprodukte) liefern alle essenziellen Aminosäuren vollständig – bei rein pflanzlichen Quellen (Hülsenfrüchte, Tofu, Quinoa) lohnt sich eine Kombination (z.B. Reis + Bohnen), um dasselbe zu erreichen.',
+  'Mageres Protein (Hähnchenbrust, Fisch, Magerquark, Tofu) liefert viel Protein bei wenig zusätzlichen Kalorien aus Fett.',
+  'Es gibt kein "perfektes" Makro-Verhältnis für alle – dein Kalorienziel und ausreichend Protein sind wichtiger als exakte Prozentzahlen bei Kohlenhydraten/Fett.',
+  'Fett sollte nicht dauerhaft unter 20% der Tageskalorien fallen – er wird unter anderem für die Hormonproduktion benötigt.',
+];
+
+export function getNutritionCoachTip(goals) {
+  const g = resolveGoalKey(normalizeGoalList(goals));
+  const tips = [...(NUTRITION_COACH_TIPS[g] || NUTRITION_COACH_TIPS.health), ...COMMON_NUTRITION_TIPS];
   return tips[Math.floor(Math.random() * tips.length)];
 }
 
