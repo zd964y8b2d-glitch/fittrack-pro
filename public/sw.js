@@ -17,7 +17,7 @@
 //     die neue Version automatisch beim nächsten App-Start (Anforderung 10).
 // ═══════════════════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'beta-2026.08.04.3';
+const CACHE_VERSION = 'beta-2026.08.04.4';
 const CACHE_NAME = `fittrack-shell-${CACHE_VERSION}`;
 
 // App-Shell: alles, was für den Grundbetrieb ohne Netz nötig ist.

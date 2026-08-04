@@ -464,8 +464,9 @@ async function saveSessionToHistory() {
 function renderCoachPlan() {
   const goals = currentProfile.goals?.length ? currentProfile.goals : ['muscle'];
   const days = coachPlanDays(goals, currentProfile.training_types, currentProfile.training_days);
-  let html = `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-PLAN</div>
-    <div class="ct-txt">Dieser Plan ist auf deine Ziele optimiert. Jede Einheit baut auf Antagonisten-Balance und progressiver Überladung auf. Du kannst jede Übung im "Mein Plan"-Tab frei anpassen.</div></div></div>`;
+  let html = `<div class="coach-tip" style="margin-bottom:10px"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-PLAN</div>
+    <div class="ct-txt">Dieser Plan ist auf deine Ziele optimiert. Jede Einheit baut auf Antagonisten-Balance und progressiver Überladung auf. Du kannst jede Übung im "Mein Plan"-Tab frei anpassen.</div></div></div>
+    <button onclick="window.addAllCoachDaysToMine()" style="width:100%;background:var(--accentBg);border:1px solid var(--accentBd);border-radius:14px;padding:13px;color:var(--accent2);font-weight:700;font-size:13px;cursor:pointer;margin-bottom:14px">✓ Kompletten Plan zu Mein Plan hinzufügen</button>`;
   days.forEach((day) => {
     const cols = [...new Set(day.exercises.map((e) => MUSCLE_COLORS[e.muscle] || '#8888A0'))];
     html += `<div class="day-card">
@@ -481,12 +482,76 @@ function renderCoachPlan() {
           <span class="ex-muscle" style="background:${col}22;color:${col}">${ex.muscle}</span>
         </div></div>`;
       }).join('')}
-      <button class="add-inline-btn" data-day="${day.key}">+ Übung zu Mein Plan hinzufügen</button>
+      <div class="row" style="gap:8px;margin-top:8px">
+        <button class="add-inline-btn" data-day="${day.key}" style="flex:1;margin-top:0">+ Übung hinzufügen</button>
+        <button onclick="window.addCoachDayToMine('${day.key}')" style="flex:1;background:var(--accentBg);border:1px solid var(--accentBd);border-radius:14px;padding:14px;color:var(--accent2);font-weight:700;font-size:14px;cursor:pointer">✓ Tag übernehmen</button>
+      </div>
     </div>`;
   });
   document.getElementById('wv-coach').innerHTML = html;
   document.querySelectorAll('#wv-coach [data-day]').forEach((btn) => btn.addEventListener('click', () => openAddExToMine(btn.dataset.day)));
 }
+
+// Übernimmt einen kompletten Coach-Plan-Tag 1:1 in "Mein Plan" (gleiche
+// Übungen/Sätze/Wiederholungen/Gewicht) - nur wenn der Zieltag dort noch
+// leer ist, damit individuell angepasste Tage nie überschrieben oder
+// verdoppelt werden. Gleiches Vorgehen wie beim initialen Plan im Onboarding.
+async function applyCoachDayToMine(day) {
+  if (!myPlanCache.length) await refreshMyPlan();
+  const occupied = myPlanCache.some((e) => e.plan_day === day.key);
+  if (occupied) return 'skipped';
+  for (const ex of day.exercises) {
+    await addPlanExercise(currentUser.id, { ...ex, day: day.key });
+  }
+  return 'added';
+}
+
+function currentCoachPlanDays() {
+  const goals = currentProfile.goals?.length ? currentProfile.goals : ['muscle'];
+  return coachPlanDays(goals, currentProfile.training_types, currentProfile.training_days);
+}
+
+window.addCoachDayToMine = async function (dayKey) {
+  try {
+    assertOnline();
+    const day = currentCoachPlanDays().find((d) => d.key === dayKey);
+    if (!day) return;
+    const result = await applyCoachDayToMine(day);
+    if (result === 'skipped') {
+      showToast(`⚠️ Tag ${dayKey} ist bereits belegt – nichts übernommen`);
+      return;
+    }
+    await refreshMyPlan();
+    showToast(`✅ Tag ${dayKey} übernommen`);
+    wTab('mine');
+  } catch (err) {
+    showToast(err.message?.includes('Internet') ? err.message : '⚠️ Übernehmen fehlgeschlagen');
+  }
+};
+
+window.addAllCoachDaysToMine = async function () {
+  try {
+    assertOnline();
+    const days = currentCoachPlanDays();
+    if (!myPlanCache.length) await refreshMyPlan();
+    let added = 0, skipped = 0;
+    for (const day of days) {
+      const result = await applyCoachDayToMine(day);
+      if (result === 'added') added++; else skipped++;
+    }
+    await refreshMyPlan();
+    if (added === 0) {
+      showToast('⚠️ Alle Tage bereits belegt – nichts übernommen');
+    } else if (skipped === 0) {
+      showToast(`✅ Kompletter Plan übernommen (${added} Tag${added === 1 ? '' : 'e'})`);
+    } else {
+      showToast(`✅ ${added} Tag${added === 1 ? '' : 'e'} übernommen, ${skipped} bereits belegt`);
+    }
+    wTab('mine');
+  } catch (err) {
+    showToast(err.message?.includes('Internet') ? err.message : '⚠️ Übernehmen fehlgeschlagen');
+  }
+};
 
 // ── MEIN PLAN (frei erstellbar) ─────────────────────────────────────────
 // Zeigt die gesammelten Tipp-/Warnkarten nacheinander (alle 12 Sekunden),

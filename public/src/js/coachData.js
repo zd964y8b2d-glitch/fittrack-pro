@@ -117,6 +117,44 @@ export const COACH_PLANS = {
         { name: 'Wadenheben', muscle: 'Waden', sets: 4, reps: 20, weight: 40, bodyweight: false },
       ]},
     },
+    // Ausdauer: bewusst KEINE Muskelaufbau-/Isolationsübungen - reine
+    // Cardio-Einheiten (Laufband/Ergometer/Rudergerät), passend zu den
+    // Kategorien aus EXERCISE_DB_ENDURANCE ("muscle" = Kategorie statt
+    // echter Muskelgruppe, reps = Minuten, siehe exerciseDB.js).
+    endurance: {
+      A: { focus: 'Lange Grundlageneinheit', exercises: [
+        { name: 'Lockerer Dauerlauf', muscle: 'Laufen', sets: 1, reps: 30, weight: 0, bodyweight: true },
+        { name: 'Grundlagenausdauer (Zone 2)', muscle: 'Radfahren', sets: 1, reps: 45, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Intervalltraining', exercises: [
+        { name: 'Intervalltraining (400m)', muscle: 'Laufen', sets: 8, reps: 2, weight: 0, bodyweight: true },
+        { name: 'Ruder-Intervalle (500m)', muscle: 'Rudern', sets: 6, reps: 3, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Ergometer & Mobility', exercises: [
+        { name: 'Ergometer Einheit', muscle: 'Rudern', sets: 1, reps: 30, weight: 0, bodyweight: true },
+        { name: 'Mobility Training', muscle: 'Yoga', sets: 1, reps: 20, weight: 0, bodyweight: true },
+      ]},
+    },
+    // Gesundheit: moderater Ganzkörper-Split (weniger Sätze/Übungen als
+    // Muskelaufbau) im Wechsel mit einer reinen Cardio-/Mobility-Einheit -
+    // ausgewogen statt auf Maximalkraft oder -defizit optimiert.
+    health: {
+      A: { focus: 'Ganzkörper (moderat)', exercises: [
+        { name: 'Kniebeuge (LH)', muscle: 'Beine', sets: 3, reps: 12, weight: 40, bodyweight: false },
+        { name: 'Bankdrücken (Kurzhantel)', muscle: 'Brust', sets: 3, reps: 12, weight: 16, bodyweight: false },
+        { name: 'Latzug (weiter Griff)', muscle: 'Rücken', sets: 3, reps: 12, weight: 40, bodyweight: false },
+        { name: 'Plank', muscle: 'Bauch', sets: 3, reps: 45, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Ausdauer & Mobility', exercises: [
+        { name: 'Grundlagenausdauer (Zone 2)', muscle: 'Radfahren', sets: 1, reps: 30, weight: 0, bodyweight: true },
+        { name: 'Mobility Training', muscle: 'Yoga', sets: 1, reps: 20, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Ganzkörper (moderat)', exercises: [
+        { name: 'Rumänisches Kreuzheben', muscle: 'Gesäß', sets: 3, reps: 12, weight: 30, bodyweight: false },
+        { name: 'Schulterdrücken (KH)', muscle: 'Schultern', sets: 3, reps: 12, weight: 10, bodyweight: false },
+        { name: 'Klimmzüge', muscle: 'Rücken', sets: 3, reps: 6, weight: 0, bodyweight: true },
+      ]},
+    },
   },
   freeletics: {
     muscle: {
@@ -191,6 +229,38 @@ export const COACH_PLANS = {
         { name: 'Glutebridge', muscle: 'Gesäß', sets: 4, reps: 18, weight: 0, bodyweight: true },
       ]},
     },
+    // Ausdauer: HIIT-/Intervall-lastig statt Muskelaufbau, passend zum
+    // Freeletics-Kern - keine Isolationsübungen.
+    endurance: {
+      A: { focus: 'HIIT-Intervalle', exercises: [
+        { name: 'Tabata (20s/10s)', muscle: 'HIIT', sets: 8, reps: 1, weight: 0, bodyweight: true },
+        { name: '30/30 Intervalle', muscle: 'HIIT', sets: 10, reps: 1, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Lauf-Intervalle', exercises: [
+        { name: 'Intervalltraining (400m)', muscle: 'Laufen', sets: 8, reps: 2, weight: 0, bodyweight: true },
+        { name: 'Bergläufe', muscle: 'Laufen', sets: 6, reps: 3, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Freeletics Workout & Circuit', exercises: [
+        { name: 'Freeletics Workout (Aphrodite)', muscle: 'HIIT', sets: 1, reps: 30, weight: 0, bodyweight: true },
+        { name: 'Circuit Training', muscle: 'HIIT', sets: 4, reps: 10, weight: 0, bodyweight: true },
+      ]},
+    },
+    // Gesundheit: leichter Ganzkörper-Zirkel im Wechsel mit lockerem Cardio.
+    health: {
+      A: { focus: 'Ganzkörper-Zirkel (leicht)', exercises: [
+        { name: 'Liegestütze', muscle: 'Brust', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Ausfallschritte', muscle: 'Beine', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Plank', muscle: 'Bauch', sets: 3, reps: 45, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Lockeres Cardio', exercises: [
+        { name: 'Lockerer Dauerlauf', muscle: 'Laufen', sets: 1, reps: 30, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Ganzkörper-Zirkel (leicht)', exercises: [
+        { name: 'Inverted Rows', muscle: 'Rücken', sets: 3, reps: 10, weight: 0, bodyweight: true },
+        { name: 'Kniebeugen', muscle: 'Beine', sets: 3, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Mobility Training', muscle: 'Yoga', sets: 1, reps: 15, weight: 0, bodyweight: true },
+      ]},
+    },
   },
   home: {
     muscle: {
@@ -255,6 +325,38 @@ export const COACH_PLANS = {
         { name: 'Glutebridge', muscle: 'Gesäß', sets: 3, reps: 16, weight: 0, bodyweight: true },
       ]},
     },
+    // Ausdauer: reines Zuhause-Cardio (Seilspringen, Tabata/EMOM, Mobility) -
+    // keine Muskelaufbau-/Kraftübungen.
+    endurance: {
+      A: { focus: 'Seilspringen & HIIT', exercises: [
+        { name: 'Seilspringen', muscle: 'Sonstiges', sets: 5, reps: 3, weight: 0, bodyweight: true },
+        { name: 'AMRAP (10 Min)', muscle: 'HIIT', sets: 1, reps: 10, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Tabata-Zirkel', exercises: [
+        { name: 'Tabata (20s/10s)', muscle: 'HIIT', sets: 8, reps: 1, weight: 0, bodyweight: true },
+        { name: 'EMOM (12 Min)', muscle: 'HIIT', sets: 12, reps: 1, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Aktive Erholung (Mobility)', exercises: [
+        { name: 'Yoga (Vinyasa Flow)', muscle: 'Yoga', sets: 1, reps: 60, weight: 0, bodyweight: true },
+        { name: 'Stretching', muscle: 'Yoga', sets: 1, reps: 20, weight: 0, bodyweight: true },
+      ]},
+    },
+    // Gesundheit: leichter Ganzkörper-Zirkel ohne Geräte im Wechsel mit Cardio.
+    health: {
+      A: { focus: 'Ganzkörper (leicht)', exercises: [
+        { name: 'Liegestütze', muscle: 'Brust', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Kniebeugen', muscle: 'Beine', sets: 3, reps: 15, weight: 0, bodyweight: true },
+        { name: 'Inverted Rows', muscle: 'Rücken', sets: 3, reps: 10, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Lockeres Cardio', exercises: [
+        { name: 'Seilspringen', muscle: 'Sonstiges', sets: 4, reps: 2, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Ganzkörper (leicht)', exercises: [
+        { name: 'Ausfallschritte', muscle: 'Beine', sets: 3, reps: 12, weight: 0, bodyweight: true },
+        { name: 'Plank', muscle: 'Bauch', sets: 3, reps: 40, weight: 0, bodyweight: true },
+        { name: 'Mobility Training', muscle: 'Yoga', sets: 1, reps: 15, weight: 0, bodyweight: true },
+      ]},
+    },
   },
   outdoor: {
     muscle: {
@@ -310,6 +412,39 @@ export const COACH_PLANS = {
         { name: 'Box Jumps', muscle: 'Beine', sets: 3, reps: 10, weight: 0, bodyweight: true },
         { name: 'L-Sit', muscle: 'Bauch', sets: 3, reps: 15, weight: 0, bodyweight: true },
         { name: 'Hanging Leg Raise', muscle: 'Bauch', sets: 3, reps: 10, weight: 0, bodyweight: true },
+      ]},
+    },
+    // Ausdauer: Lauf-/Wander-lastiges Outdoor-Cardio - keine Calisthenics-
+    // Kraft-Skills, um konsequent bei "keine Muskelaufbau-Übungen" zu bleiben.
+    endurance: {
+      A: { focus: 'Dauerlauf im Freien', exercises: [
+        { name: 'Lockerer Dauerlauf', muscle: 'Laufen', sets: 1, reps: 30, weight: 0, bodyweight: true },
+        { name: 'Fahrtspiel', muscle: 'Laufen', sets: 1, reps: 45, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Sprints & Bergläufe', exercises: [
+        { name: 'Bergläufe', muscle: 'Laufen', sets: 6, reps: 3, weight: 0, bodyweight: true },
+        { name: 'Sprintintervalle', muscle: 'Radfahren', sets: 10, reps: 1, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Wandern & Trailrunning', exercises: [
+        { name: 'Trailrunning', muscle: 'Wandern', sets: 1, reps: 60, weight: 0, bodyweight: true },
+        { name: 'Nordic Walking', muscle: 'Wandern', sets: 1, reps: 45, weight: 0, bodyweight: true },
+      ]},
+    },
+    // Gesundheit: leichter Calisthenics-Ganzkörper-Mix im Wechsel mit
+    // lockerem Lauf/Mobility - moderat statt auf Maximalkraft ausgelegt.
+    health: {
+      A: { focus: 'Ganzkörper im Park (moderat)', exercises: [
+        { name: 'Klimmzüge', muscle: 'Rücken', sets: 3, reps: 6, weight: 0, bodyweight: true },
+        { name: 'Dips (Barren)', muscle: 'Trizeps', sets: 3, reps: 10, weight: 0, bodyweight: true },
+        { name: 'Ausfallschritte', muscle: 'Beine', sets: 3, reps: 12, weight: 0, bodyweight: true },
+      ]},
+      B: { focus: 'Lockerer Lauf & Mobility', exercises: [
+        { name: 'Lockerer Dauerlauf', muscle: 'Laufen', sets: 1, reps: 30, weight: 0, bodyweight: true },
+        { name: 'Stretching', muscle: 'Yoga', sets: 1, reps: 15, weight: 0, bodyweight: true },
+      ]},
+      C: { focus: 'Ganzkörper im Park (moderat)', exercises: [
+        { name: 'Pike Push-Up', muscle: 'Schultern', sets: 3, reps: 10, weight: 0, bodyweight: true },
+        { name: 'Plank', muscle: 'Bauch', sets: 3, reps: 45, weight: 0, bodyweight: true },
       ]},
     },
   },
