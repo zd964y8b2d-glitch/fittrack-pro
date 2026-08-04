@@ -24,6 +24,9 @@ let customMealsCache = [];
 let buildItems = [];
 let buildSearchDebounceTimer = null;
 let buildSearchRequestId = 0;
+// Ziel eines Barcode-Scans: 'log' (Haupt-Suche/Scan-Tab, direkt einer
+// Mahlzeit hinzufügen) oder 'build' (Zutat für "Mahlzeit bauen" scannen).
+let scanTarget = 'log';
 
 let selectedProduct = null;
 let html5QrCode = null;
@@ -36,6 +39,10 @@ let waterEntry = null; // aktueller {id, water_ml} Datensatz für heute (Tageswe
 let nutrCalYear = new Date().getFullYear();
 let nutrCalMonth = new Date().getMonth(); // 0-11
 let nutrCalDataCache = {};
+
+function round1(v) {
+  return Math.round(v * 10) / 10;
+}
 
 export function initNutritionModule(user, profile) {
   currentUser = user;
@@ -426,14 +433,22 @@ function openEditMeal(mealId) {
   if (!meal) return;
   resetMealModal();
   switchMealTab('manual');
+  // Gespeichert sind nur die absoluten Endwerte (kcal für die tatsächlich
+  // gegessene Menge) - für die pro-100g-Felder hier zurückgerechnet, mit
+  // der echten Menge falls bekannt (z.B. aus der Suche, meal.grams gesetzt),
+  // sonst mit der Annahme 100g (siehe Menge-Feld, für den Nutzer anpassbar).
+  const grams = meal.grams || 100;
+  const factor = 100 / grams;
   document.getElementById('mn-name').value = meal.meal_name;
-  document.getElementById('mn-cal').value = meal.kcal;
-  document.getElementById('mn-p').value = meal.protein_g;
-  document.getElementById('mn-c').value = meal.carbs_g;
-  document.getElementById('mn-f').value = meal.fat_g;
-  document.getElementById('mn-fiber').value = meal.fiber_g || '';
+  document.getElementById('mn-cal').value = Math.round(meal.kcal * factor);
+  document.getElementById('mn-p').value = round1(meal.protein_g * factor);
+  document.getElementById('mn-c').value = round1(meal.carbs_g * factor);
+  document.getElementById('mn-f').value = round1(meal.fat_g * factor);
+  document.getElementById('mn-fiber').value = meal.fiber_g ? round1(meal.fiber_g * factor) : '';
+  document.getElementById('mn-grams').value = grams;
   document.getElementById('mn-edit-id').value = meal.id;
   populateSlotSelect('mn-slot-select', meal.meal_slot_id);
+  updateManualPreview();
   document.querySelector('#mo-meal .mt').textContent = 'Mahlzeit bearbeiten';
   // Siehe openMealModalForSlotOnDate: ohne dieses Schließen würde sich
   // mo-meal beim Bearbeiten aus der Kalender-Tagesansicht heraus unsichtbar
@@ -668,12 +683,12 @@ function resetMealModal() {
   document.getElementById('food-search-results').innerHTML = '';
   document.getElementById('food-search-status').style.display = 'none';
   document.getElementById('mn-edit-id').value = '';
-  ['mn-name', 'mn-cal', 'mn-p', 'mn-c', 'mn-f', 'mn-fiber'].forEach((id) => (document.getElementById(id).value = ''));
+  ['mn-name', 'mn-cal', 'mn-p', 'mn-c', 'mn-f', 'mn-fiber', 'mn-grams'].forEach((id) => (document.getElementById(id).value = ''));
   document.getElementById('mn-save-generic').checked = false;
-  document.getElementById('mn-generic-grams').value = '100';
-  document.getElementById('mn-generic-grams-wrap').style.display = 'none';
+  document.getElementById('mn-preview').style.display = 'none';
   populateSlotSelect('mn-slot-select', preselectedSlotId);
   selectedProduct = null;
+  scanTarget = 'log';
   stopScanner();
   loadAndShowFrequentFoods();
   loadAndShowCustomMeals();
@@ -907,9 +922,25 @@ function removeBuildItem(index) {
   renderBuildItems();
 }
 
+// Aktualisiert NUR die kcal-Anzeige der betroffenen Zutat + die Gesamtsumme,
+// OHNE renderBuildItems() (volles Neuzeichnen) aufzurufen - das würde das
+// Eingabefeld selbst durch ein neues DOM-Element ersetzen und damit bei
+// jedem Tastendruck den Fokus verlieren (nur noch 1 Zeichen pro Antippen
+// änderbar). Die Struktur (Zutatenliste) ändert sich hier nicht, nur Werte.
 function onBuildGramsInput(index, value) {
   buildItems[index].grams = Math.max(0, parseInt(value) || 0);
-  renderBuildItems();
+  const item = buildItems[index];
+  const scaled = scaleNutrients(item.per100, item.grams);
+  const kcalEl = document.getElementById(`build-item-kcal-${index}`);
+  if (kcalEl) kcalEl.textContent = `${scaled.kcal} kcal`;
+  updateBuildTotalsDisplay();
+}
+
+function updateBuildTotalsDisplay() {
+  const totals = buildItemsTotals();
+  document.getElementById('build-total-kcal').textContent = totals.kcal;
+  document.getElementById('build-total-protein').textContent = totals.protein + 'g';
+  document.getElementById('build-total-carbs').textContent = totals.carbs + 'g';
 }
 
 function buildItemsTotals() {
@@ -947,7 +978,7 @@ function renderBuildItems() {
       <div class="row" style="align-items:center;gap:8px">
         <div style="flex:1">
           <div style="font-size:13px;font-weight:700">${item.name}</div>
-          <div style="font-size:11px;color:var(--sub);margin-top:1px">${scaled.kcal} kcal</div>
+          <div style="font-size:11px;color:var(--sub);margin-top:1px" id="build-item-kcal-${i}">${scaled.kcal} kcal</div>
         </div>
         <input type="number" inputmode="numeric" value="${item.grams}" data-build-grams-idx="${i}" style="width:56px;text-align:center;border:1px solid var(--border);border-radius:8px;padding:6px;background:var(--surface);color:var(--text);font-size:13px">
         <span style="font-size:11px;color:var(--sub)">g</span>
@@ -963,10 +994,7 @@ function renderBuildItems() {
     btn.addEventListener('click', () => removeBuildItem(parseInt(btn.dataset.buildRemoveIdx)));
   });
 
-  const totals = buildItemsTotals();
-  document.getElementById('build-total-kcal').textContent = totals.kcal;
-  document.getElementById('build-total-protein').textContent = totals.protein + 'g';
-  document.getElementById('build-total-carbs').textContent = totals.carbs + 'g';
+  updateBuildTotalsDisplay();
 }
 
 // Speichert die im "Bauen"-Tab zusammengestellte Zutatenliste als neue eigene
@@ -993,13 +1021,6 @@ export async function saveCustomMeal() {
   } catch (e) {
     showToast('⚠️ Speichern fehlgeschlagen');
   }
-}
-
-// Blendet das Mengenfeld nur ein, wenn "Als eigenes Lebensmittel speichern"
-// aktiviert ist - hält das Formular im Normalfall kompakt.
-export function toggleSaveGenericGrams() {
-  const checked = document.getElementById('mn-save-generic').checked;
-  document.getElementById('mn-generic-grams-wrap').style.display = checked ? '' : 'none';
 }
 
 export function switchMealTab(tab) {
@@ -1179,6 +1200,22 @@ export async function saveSelectedProduct() {
 // kontinuierlicher Autofokus angefordert (sofern vom Gerät unterstützt),
 // was die Zeit bis zum scharfen Bild bei Nahaufnahmen (Barcode aus
 // wenigen cm Entfernung) verkürzt.
+// Startet den Scanner mit Ziel "Bauen"-Tab (Zutat zur Liste hinzufügen)
+// statt des normalen Ziels "heute eintragen" - siehe onBarcodeDetected.
+export function startBuildScan() {
+  scanTarget = 'build';
+  switchMealTab('scan');
+  startScanner();
+}
+
+// Normaler Weg zum Scan-Tab (über den Tab-Button selbst, nicht über
+// startBuildScan) - setzt das Scan-Ziel zurück auf "log", damit ein zuvor
+// per startBuildScan gesetztes Ziel nicht unbemerkt bestehen bleibt.
+export function switchToScanTab() {
+  scanTarget = 'log';
+  switchMealTab('scan');
+}
+
 export async function startScanner() {
   const statusEl = document.getElementById('scan-status');
   document.getElementById('scanner-placeholder').style.display = 'none';
@@ -1247,10 +1284,16 @@ async function onBarcodeDetected(barcode) {
     const product = await getFoodByBarcode(barcode);
     if (!product) {
       showToast('⚠️ Produkt nicht in der Datenbank gefunden');
-      switchMealTab('manual');
+      switchMealTab(scanTarget === 'build' ? 'build' : 'manual');
       return;
     }
-    selectProduct(product);
+    if (scanTarget === 'build') {
+      addBuildItem(product);
+      switchMealTab('build');
+      showToast(`✅ ${product.name} hinzugefügt`);
+    } else {
+      selectProduct(product);
+    }
   } catch (err) {
     showToast('⚠️ Produktsuche fehlgeschlagen');
   }
@@ -1274,20 +1317,48 @@ function resetScanButtons() {
   document.getElementById('btn-stop-scan').style.display = 'none';
 }
 
-// ── MANUELLE EINGABE (mit Bearbeiten-Unterstützung) ──────────────────────
+// ── MANUELLE EINGABE (Nährwerte pro 100g + Menge, Bearbeiten-Unterstützung) ──
+// Konsistent mit Suche/Scan/Bauen: Werte werden pro 100g eingegeben und mit
+// der Menge automatisch auf den tatsächlichen Eintrag skaliert (Live-
+// Vorschau via updateManualPreview), statt absolute Endwerte direkt
+// einzutippen - vermied vorher Verwirrung, welche Zahl "die richtige" ist.
+function readManualPer100() {
+  return {
+    kcal: parseFloat(document.getElementById('mn-cal').value) || 0,
+    protein: parseFloat(document.getElementById('mn-p').value) || 0,
+    carbs: parseFloat(document.getElementById('mn-c').value) || 0,
+    fat: parseFloat(document.getElementById('mn-f').value) || 0,
+    fiber: parseFloat(document.getElementById('mn-fiber').value) || 0,
+  };
+}
+
+export function onManualInput() {
+  updateManualPreview();
+}
+
+function updateManualPreview() {
+  const per100 = readManualPer100();
+  const grams = parseFloat(document.getElementById('mn-grams').value) || 0;
+  const previewEl = document.getElementById('mn-preview');
+  if (!grams || !per100.kcal) { previewEl.style.display = 'none'; return; }
+  const scaled = scaleNutrients(per100, grams);
+  previewEl.style.display = '';
+  document.getElementById('mn-prev-kcal').textContent = scaled.kcal;
+  document.getElementById('mn-prev-protein').textContent = scaled.protein + 'g';
+  document.getElementById('mn-prev-carbs').textContent = scaled.carbs + 'g';
+}
+
 export async function saveMealFromModal() {
   const name = document.getElementById('mn-name').value.trim();
-  const cal = parseInt(document.getElementById('mn-cal').value) || 0;
-  if (!name || !cal) { showToast('⚠️ Name + Kalorien erforderlich'); return; }
+  const per100 = readManualPer100();
+  const grams = parseFloat(document.getElementById('mn-grams').value) || 0;
+  if (!name || !grams || !per100.kcal) { showToast('⚠️ Name, Nährwerte pro 100g und Menge erforderlich'); return; }
 
   const editId = document.getElementById('mn-edit-id').value;
   const slotId = document.getElementById('mn-slot-select').value;
-  const protein = parseInt(document.getElementById('mn-p').value) || 0;
-  const carbs = parseInt(document.getElementById('mn-c').value) || 0;
-  const fat = parseInt(document.getElementById('mn-f').value) || 0;
-  const fiberRaw = document.getElementById('mn-fiber').value;
-  const fiber = fiberRaw ? parseInt(fiberRaw) || 0 : null;
-  const payload = { name, cal, protein, carbs, fat, fiber, slotId };
+  const scaled = scaleNutrients(per100, grams);
+  const fiber = document.getElementById('mn-fiber').value ? scaled.fiber : null;
+  const payload = { name, cal: scaled.kcal, protein: scaled.protein, carbs: scaled.carbs, fat: scaled.fat, fiber, slotId, grams };
 
   try {
     assertOnline();
@@ -1300,22 +1371,15 @@ export async function saveMealFromModal() {
       });
     }
 
-    // Optional: als eigenes Lebensmittel für spätere Suchen speichern.
-    // Die eingegebenen Werte beziehen sich auf die angegebene Menge (Default
-    // 100g) und werden auf "pro 100g" umgerechnet, damit sie zum Schema der
-    // generischen/OFF-Ergebnisse passen (scaleNutrients invers).
+    // Optional: als eigenes Lebensmittel für spätere Suchen speichern - die
+    // eingegebenen Werte sind bereits pro 100g, keine weitere Umrechnung nötig.
     const saveGeneric = document.getElementById('mn-save-generic')?.checked;
     if (saveGeneric) {
-      const grams = Math.max(1, parseInt(document.getElementById('mn-generic-grams').value) || 100);
-      const factor = 100 / grams;
       try {
         const newFood = await addCustomFood(currentUser.id, {
-          name,
-          kcal: Math.round(cal * factor),
-          protein: Math.round(protein * factor * 10) / 10,
-          carbs: Math.round(carbs * factor * 10) / 10,
-          fat: Math.round(fat * factor * 10) / 10,
-          fiber: fiber !== null ? Math.round(fiber * factor * 10) / 10 : null,
+          name, kcal: Math.round(per100.kcal), protein: round1(per100.protein),
+          carbs: round1(per100.carbs), fat: round1(per100.fat),
+          fiber: document.getElementById('mn-fiber').value ? round1(per100.fiber) : null,
         });
         customFoodsCache = [newFood, ...customFoodsCache];
       } catch (e) {

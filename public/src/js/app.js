@@ -23,14 +23,15 @@ import {
   updateProfileRef as updateWorkoutProfileRef,
 } from './workout.js';
 import {
-  initNutritionModule, renderNutrition, saveMealFromModal, toggleSaveGenericGrams,
+  initNutritionModule, renderNutrition, saveMealFromModal,
   switchMealTab, onFoodSearchInput, stepGrams, onGramsInput,
   backToSearch, saveSelectedProduct, startScanner, stopScanner,
   switchNutritionTab, openSlotRename, saveSlotRename, deleteSlotFromRenameModal,
   stepWater, saveWater,
   nutritionCalPrevMonth, nutritionCalNextMonth,
   showNutritionForDate, closeNutritionReview, closeMealModal,
-  onBuildSearchInput, saveCustomMeal,
+  onBuildSearchInput, saveCustomMeal, startBuildScan, switchToScanTab,
+  onManualInput,
   updateProfileRef as updateNutritionProfileRef,
 } from './nutrition.js';
 import { initSettingsModule, renderSettings, saveGoalEdit, editField } from './settings.js';
@@ -527,19 +528,26 @@ function wireStaticButtons() {
     await saveMealFromModal();
     await renderHome();
   });
-  on('mn-save-generic', 'change', () => toggleSaveGenericGrams());
-
-  // Meal Modal - Tabs (Suche / Scannen / Manuell / Bauen)
-  ['search', 'scan', 'manual', 'build'].forEach((t) => {
+  // Meal Modal - Tabs (Suche / Manuell / Bauen). "Scannen" separat verdrahtet,
+  // da ein Klick auf den Tab selbst (statt über startBuildScan) das
+  // Scan-Ziel auf "log" zurücksetzen soll (siehe scanTarget in nutrition.js).
+  ['search', 'manual', 'build'].forEach((t) => {
     on('mtab-' + t, 'click', () => switchMealTab(t));
   });
+  on('mtab-scan', 'click', () => switchToScanTab());
 
   // Meal Modal - Textsuche (Produktname + optionaler Hersteller)
   on('food-search-input', 'input', () => onFoodSearchInput());
   on('food-search-brand-input', 'input', () => onFoodSearchInput());
 
+  // Meal Modal - Manuelle Eingabe (Nährwerte pro 100g + Menge -> Live-Vorschau)
+  ['mn-cal', 'mn-p', 'mn-c', 'mn-f', 'mn-grams'].forEach((id) => {
+    on(id, 'input', () => onManualInput());
+  });
+
   // Meal Modal - Mahlzeit bauen (mehrere Lebensmittel zusammenstellen)
   on('build-search-input', 'input', () => onBuildSearchInput());
+  on('btn-build-scan', 'click', () => startBuildScan());
   on('btn-save-custom-meal', 'click', () => saveCustomMeal());
 
   // Meal Modal - Barcode-Scanner
