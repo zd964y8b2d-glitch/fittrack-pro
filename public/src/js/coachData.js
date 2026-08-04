@@ -29,7 +29,7 @@ export function getRestSeconds(muscleGroup) {
 export const GOAL_OPTS = [
   { v: 'muscle', i: '💪', l: 'Muskelaufbau', s: 'Masse & Kraft aufbauen' },
   { v: 'cut', i: '🔥', l: 'Fettabbau', s: 'Definiert & schlank werden' },
-  { v: 'recomp', i: '⚖️', l: 'Rekomposition', s: 'Muskeln + Fett gleichzeitig' },
+  { v: 'recomp', i: '⚖️', l: 'Rekomposition', s: 'Muskelaufbau + Fettabbau' },
   { v: 'endurance', i: '🏃', l: 'Ausdauer', s: 'Kondition & Leistung steigern' },
   { v: 'health', i: '❤️', l: 'Gesundheit', s: 'Fit & vital bleiben' },
 ];
