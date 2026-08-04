@@ -446,10 +446,64 @@ const COMMON_COACH_TIPS = [
   'Aufwärmsätze mit leichterem Gewicht vor dem eigentlichen Arbeitsgewicht senken das Verletzungsrisiko und verbessern die Leistung im Arbeitssatz.',
 ];
 
-export function getCoachTip(goals) {
+// Technik-/Ausführungs-Tipps je gewählter Trainingsart (TYPE_OPTS) - gelten
+// übergreifend für alle Sportarten dieser Art, unabhängig vom Trainingsziel.
+const TECHNIQUE_TIPS = {
+  gym: [
+    'Halte bei Langhantel-Übungen wie Kniebeuge/Kreuzheben die Wirbelsäule neutral – ein runder Rücken unter Last erhöht das Verletzungsrisiko erheblich.',
+    'Führe das Gewicht kontrolliert in beide Richtungen (auch beim Ablassen/exzentrisch) – Schwung nimmt der Zielmuskulatur die eigentliche Arbeit ab.',
+    'Volle Bewegungsamplitude schlägt meist mehr Gewicht mit halber Bewegung – besser für Muskelwachstum UND Beweglichkeit.',
+  ],
+  freeletics: [
+    'Bei HIIT-Übungen zählt sauberes Landen (weiche Knie) genauso wie Tempo – harte Landungen belasten die Gelenke unnötig.',
+    'Bei Burpees: Rücken beim Absprung gerade halten, nicht ins Hohlkreuz fallen lassen.',
+    'Technik geht vor Tempo – lieber 10 saubere Wiederholungen als 15 mit schlechter Haltung.',
+  ],
+  home: [
+    'Ohne Geräte ersetzt die Übungsauswahl (Winkel, Tempo, Wiederholungszahl) das fehlende Gewicht – z.B. langsameres Tempo oder einbeinige Varianten für mehr Intensität.',
+    'Bei Liegestütz-Varianten die Ellbogen am oberen Punkt nicht komplett durchstrecken/einrasten – das schont die Gelenke.',
+    'Rumpf (Bauch/Rücken) bei praktisch jeder Bodyweight-Übung aktiv anspannen – stabilisiert die Wirbelsäule.',
+  ],
+  outdoor: [
+    'An der Klimmzugstange: Schultern aktiv nach unten ziehen, bevor der eigentliche Zug beginnt – schützt die Schultergelenke.',
+    'Bei Dips: Ellbogen nicht zu weit nach außen (ca. 30-45° zum Körper) hält die Schulter in einer sicheren Position.',
+    'Auf Parkgeräten/unebenem Untergrund zuerst die Stabilität testen, bevor volles Tempo oder Zusatzgewicht eingesetzt wird.',
+  ],
+};
+
+// trainingTypes optional: fließt zusätzlich zum ziel-basierten Pool mit ein,
+// sodass der Home-Coach-Tipp gelegentlich auch Technik-Tipps zu den vom
+// Nutzer gewählten Trainingsarten zeigt (TYPE_OPTS: gym/freeletics/home/outdoor).
+export function getCoachTip(goals, trainingTypes) {
   const g = resolveGoalKey(normalizeGoalList(goals));
   const tips = [...(COACH_TIPS[g] || COACH_TIPS.health), ...COMMON_COACH_TIPS];
+  if (trainingTypes && trainingTypes.length) {
+    tips.push(...trainingTypes.flatMap((t) => TECHNIQUE_TIPS[t] || []));
+  }
   return tips[Math.floor(Math.random() * tips.length)];
+}
+
+// Findet die Übung mit dem größten prozentualen Fortschritt (Gewicht bei
+// Geräte-/Freihantel-Übungen, sonst Wiederholungen) seit dem ersten
+// Historien-Eintrag - für eine konkrete, positive Fortschritts-Meldung im
+// Hintergrund (Mein-Plan-Karussell), analog zum RPE-Trend-Tipp.
+// exercises: myPlanCache-Einträge mit .history (siehe appendExerciseHistory).
+export function findBestProgressExercise(exercises) {
+  let best = null;
+  (exercises || []).forEach((ex) => {
+    const hist = ex.history || [];
+    if (hist.length < 2) return;
+    const first = hist[0], last = hist[hist.length - 1];
+    const metric = ex.is_bodyweight ? 'reps' : 'weight';
+    const firstVal = first[metric], lastVal = last[metric];
+    if (!firstVal || firstVal <= 0) return;
+    const pctChange = Math.round(((lastVal - firstVal) / firstVal) * 100);
+    if (pctChange > 5 && (!best || pctChange > best.pctChange)) {
+      const weeks = Math.max(1, Math.round((new Date(last.date) - new Date(first.date)) / (7 * 86400000)));
+      best = { name: ex.exercise_name, pctChange, firstVal, lastVal, weeks, isBodyweight: ex.is_bodyweight };
+    }
+  });
+  return best;
 }
 
 // ── Ernährungs-Coach-Tipps (rotierender Tipp in der Ernährungs-Ansicht,
@@ -867,20 +921,86 @@ export function analyzeNutritionTrend(mealHistory, weightHistory, goalMacros, go
     }
   }
 
-  // Gewichts-Stagnation trotz Zielabweichung (nur wenn genug Gewichtsdaten vorhanden)
+  // Positives Feedback, wenn Kalorien UND Protein im Zielbereich liegen -
+  // bisher gab es hier nur Warnungen bei Abweichung. Wird mit mehr Tagen
+  // Historie präziser (konkrete Durchschnittswerte statt nur allgemeinem Lob).
+  if (Math.abs(kcalDiff) <= 300 && proteinDiff >= -20) {
+    if (mealHistory.length >= 10) {
+      insights.push(`Starke Leistung: Im Schnitt der letzten ${recentDays.length} Tage lagst du bei ${avgKcal} kcal (Ziel ${goalMacros.kcal}) und ${avgProtein}g Protein (Ziel ${goalMacros.protein}g) – genau im Zielbereich. Weiter so! 💪`);
+    } else {
+      insights.push('Deine Ernährung der letzten Tage liegt gut im Zielbereich – weiter so!');
+    }
+  }
+
+  // Gewichts-Trend (nur wenn genug Gewichtsdaten vorhanden): Stagnation trotz
+  // Zielabweichung warnt, spürbare Bewegung in die richtige Richtung lobt
+  // mit dem konkreten kg-Wert.
   if (weightHistory && weightHistory.length >= 4) {
     const recent = weightHistory.slice(-4);
     const weightChange = recent[recent.length - 1].weight - recent[0].weight;
+    const weightChangeAbs = Math.round(Math.abs(weightChange) * 10) / 10;
     if (Math.abs(weightChange) < 0.3) {
       if (goal === 'cut' && kcalDiff > -100) {
         insights.push('Dein Gewicht stagniert seit ca. 2 Wochen, obwohl Fettabbau dein Ziel ist. Erwäge, die Kalorien um 100–150 kcal zu senken.');
       } else if (goal === 'muscle' && kcalDiff < 100) {
         insights.push('Dein Gewicht stagniert seit ca. 2 Wochen. Für Muskelaufbau könnte ein leichter Kalorien-Überschuss helfen.');
       }
+    } else if (goal === 'cut' && weightChange < -0.3) {
+      insights.push(`Du hast in den letzten ca. 2 Wochen ${weightChangeAbs} kg abgenommen – genau im gesunden Tempo für nachhaltigen Fettabbau. 🔥`);
+    } else if ((goal === 'muscle' || goal === 'recomp') && weightChange > 0.3) {
+      insights.push(`Du hast in den letzten ca. 2 Wochen ${weightChangeAbs} kg zugenommen – guter Trend für deinen Muskelaufbau. 💪`);
     }
   }
 
   return insights;
+}
+
+// Zählt, wie viele Tage in Folge (bis heute oder gestern, damit die Serie
+// nicht schon vormittags auf 0 fällt, bevor der heutige Tag vorbei ist)
+// mindestens eine Mahlzeit eingetragen wurde. mealHistory: siehe
+// analyzeNutritionTrend (Tage ohne Eintrag fehlen dort einfach).
+export function calcTrackingStreak(mealHistory) {
+  if (!mealHistory || !mealHistory.length) return 0;
+  const dateSet = new Set(mealHistory.map((d) => d.date));
+  const fmt = (d) => {
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const cursor = new Date();
+  if (!dateSet.has(fmt(cursor))) cursor.setDate(cursor.getDate() - 1);
+  let streak = 0;
+  while (dateSet.has(fmt(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+// ── BALLASTSTOFF-ANALYSE ─────────────────────────────────────────────────
+// Kuratierte Stichwortlisten bekannter löslicher/unlöslicher Ballaststoff-
+// quellen (kein Datenfeld dafür in den Lebensmittel-Daten) - werden gegen
+// die zuletzt eingetragenen Mahlzeit-/Lebensmittelnamen abgeglichen, um
+// EIGENE, zutreffende Beispiele + eine konkrete Verbesserung vorzuschlagen,
+// statt nur allgemeiner Theorie.
+const SOLUBLE_FIBER_KEYWORDS = ['hafer', 'apfel', 'birne', 'linsen', 'kichererbse', 'kidneybohne', 'bohnen', 'orange', 'karotte', 'flohsamen'];
+const INSOLUBLE_FIBER_KEYWORDS = ['vollkorn', 'quinoa', 'brokkoli', 'blumenkohl', 'kleie', 'mandel', 'walnuss', 'naturreis', 'couscous'];
+
+export function analyzeFiberIntake(recentFoodNames) {
+  if (!recentFoodNames || recentFoodNames.length < 3) return null; // zu wenig Daten für eine belastbare Aussage
+  const names = recentFoodNames.map((n) => n.toLowerCase());
+  const hasSoluble = names.some((n) => SOLUBLE_FIBER_KEYWORDS.some((kw) => n.includes(kw)));
+  const hasInsoluble = names.some((n) => INSOLUBLE_FIBER_KEYWORDS.some((kw) => n.includes(kw)));
+
+  if (hasSoluble && hasInsoluble) {
+    return 'Gute Mischung: Du isst bereits sowohl lösliche (z.B. Hafer, Hülsenfrüchte, Obst) als auch unlösliche Ballaststoffe (z.B. Vollkornprodukte) – das unterstützt Verdauung UND Cholesterinspiegel gleichermaßen.';
+  }
+  if (hasSoluble && !hasInsoluble) {
+    return 'Du isst bereits gut lösliche Ballaststoffe (z.B. Hafer, Obst, Hülsenfrüchte) – ergänze noch unlösliche Quellen wie Vollkornbrot, Vollkornreis oder Quinoa für eine bessere Verdauung.';
+  }
+  if (!hasSoluble && hasInsoluble) {
+    return 'Du isst bereits unlösliche Ballaststoffe (z.B. Vollkornprodukte) – ergänze noch lösliche Quellen wie Hafer, Äpfel oder Hülsenfrüchte, die zusätzlich den Cholesterinspiegel senken können.';
+  }
+  return 'In deinen letzten Mahlzeiten waren kaum erkennbare Ballaststoffquellen dabei. Lösliche Ballaststoffe (Hafer, Äpfel, Hülsenfrüchte) und unlösliche (Vollkornprodukte, Gemüse) ergänzen sich – schon eine Portion Haferflocken oder Vollkornbrot am Tag macht einen spürbaren Unterschied.';
 }
 
 

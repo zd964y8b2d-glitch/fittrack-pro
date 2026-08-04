@@ -295,7 +295,7 @@ async function renderHome() {
     el.addEventListener('click', () => handleHomeTileClick(el.dataset.homeTile));
   });
 
-  document.getElementById('home-tip').innerHTML = `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-TIPP</div><div class="ct-txt">${getCoachTip(currentProfile.goals)}</div></div></div>`;
+  document.getElementById('home-tip').innerHTML = `<div class="coach-tip"><div class="ct-icon">🏆</div><div><div class="ct-lbl">COACH-TIPP</div><div class="ct-txt">${getCoachTip(currentProfile.goals, currentProfile.training_types)}</div></div></div>`;
 
   // Nutzt jetzt dieselbe Datenquelle wie die "Verbrannte Kalorien"-Karte im
   // Ernährungs-Tab (body_measurements/kind='burned'), statt einer zweiten,

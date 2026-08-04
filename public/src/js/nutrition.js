@@ -10,7 +10,7 @@ import { ringHTML, pbar, showToast, closeMo, openMo, confirmDialog, mealTotals }
 import { assertOnline } from './offline.js';
 import { searchFoodByName, getFoodByBarcode, scaleNutrients } from './foodSearch.js';
 import { matchesQuery } from './genericFoods.js';
-import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns, comboCategoryForSlot, comboTemplateCount, buildFoodCombo, getNutritionCoachTip } from './coachData.js';
+import { DEFAULT_MEAL_SLOTS, buildCoachNutritionPlan, addMealSlot, removeMealSlot, analyzeNutritionTrend, analyzeNutritionPatterns, comboCategoryForSlot, comboTemplateCount, buildFoodCombo, getNutritionCoachTip, calcTrackingStreak, analyzeFiberIntake } from './coachData.js';
 import { buildCalendarGrid, MONTH_NAMES } from './calendar.js';
 
 let currentUser = null;
@@ -156,11 +156,12 @@ async function renderTrendInsights(dailyMacros) {
   const el = document.getElementById('nutr-insights');
   if (insightsCarouselTimer) { clearInterval(insightsCarouselTimer); insightsCarouselTimer = null; }
   try {
-    const [history, weightHistory, mealsBySlot, recentLogs] = await Promise.all([
+    const [history, weightHistory, mealsBySlot, recentLogs, frequentFoods] = await Promise.all([
       getMealHistoryAggregated(currentUser.id, 14),
       getWeightHistoryForTrend(currentUser.id, 21),
       getMealsBySlotHistory(currentUser.id, 14),
       getWorkoutLogs(currentUser.id, 5),
+      getFrequentFoods(currentUser.id, 30, 15),
     ]);
     const goal = currentProfile.goals?.[0] || 'health';
     // Durchschnittliche Anstrengung (RPE) der letzten Einheiten - bezieht das
@@ -172,7 +173,17 @@ async function renderTrendInsights(dailyMacros) {
       : null;
     const insights = analyzeNutritionTrend(history, weightHistory, dailyMacros, goal, avgRecentRpe);
     const patterns = analyzeNutritionPatterns(mealsBySlot);
-    insightsCarouselItems = [...insights, ...patterns.insights];
+
+    // Positive Motivation: Tracking-Serie (Tage in Folge mit min. 1 Eintrag) -
+    // erst ab 3 Tagen zeigen, sonst wirkt es bei jedem einzelnen Eintrag aufdringlich.
+    const streak = calcTrackingStreak(history);
+    const streakInsight = streak >= 3 ? [`🔥 ${streak} Tage in Folge Ernährung getrackt – starke Konsistenz!`] : [];
+
+    // Ballaststoff-Beispiele/-Verbesserungsvorschlag anhand der zuletzt
+    // eingetragenen Lebensmittel (siehe analyzeFiberIntake).
+    const fiberInsight = analyzeFiberIntake(frequentFoods.map((f) => f.name));
+
+    insightsCarouselItems = [...insights, ...streakInsight, ...(fiberInsight ? [fiberInsight] : []), ...patterns.insights];
     insightsCarouselIndex = 0;
 
     if (!insightsCarouselItems.length) { el.innerHTML = ''; return; }

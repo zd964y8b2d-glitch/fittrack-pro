@@ -14,7 +14,7 @@ import {
 import {
   MUSCLE_COLORS, MUSCLE_GROUPS_IMPORTANT, coachPlanDays, analyzeMyPlan, GOAL_OPTS, analyzePlanByGoal,
   evaluateWorkoutSession, addNutritionContextToEvaluation, getNextWorkoutTip, analyzeExercisePatterns, RPE_LABELS,
-  getRestSeconds,
+  getRestSeconds, findBestProgressExercise,
 } from './coachData.js';
 import { showToast, openMo, closeMo, confirmDialog, fmtTime, todayLbl, dayMonthLbl, typeLbl, showApp, mealTotals } from './ui.js';
 import { assertOnline } from './offline.js';
@@ -568,6 +568,19 @@ async function renderMyPlan() {
     } else if (avgRpe <= 1.5) {
       tipItems.push({ icon: '📈', label: 'TRAININGSREIZ', txt: 'Deine letzten Einheiten fühlten sich eher leicht an. Steigere Gewicht, Wiederholungen oder Sätze, um den Fortschritt zu beschleunigen.' });
     }
+  }
+
+  // Positive Fortschritts-Meldung: die Übung mit dem größten Zuwachs seit
+  // dem ersten Historien-Eintrag, konkret mit Prozentzahl und Zeitraum -
+  // motiviert mit echten Daten statt allgemeiner Floskeln.
+  const bestProgress = findBestProgressExercise(myPlanCache);
+  if (bestProgress) {
+    const unit = bestProgress.isBodyweight ? 'Wiederholungen' : 'Gewicht';
+    const valFmt = (v) => bestProgress.isBodyweight ? v : v + ' kg';
+    tipItems.push({
+      icon: '📈', label: 'FORTSCHRITT',
+      txt: `Dein ${bestProgress.name}-${unit} ist in ${bestProgress.weeks} Woche${bestProgress.weeks === 1 ? '' : 'n'} um ${bestProgress.pctChange}% gestiegen (${valFmt(bestProgress.firstVal)} → ${valFmt(bestProgress.lastVal)}). Weiter so! 💪`,
+    });
   }
 
   goalAnalysis.forEach(ga => {
